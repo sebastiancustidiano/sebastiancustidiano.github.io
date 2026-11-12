@@ -865,7 +865,7 @@ const $=id=>document.getElementById(id);
     if(!isMember()){const e=new Error('Tu usuario no tiene acceso a esta sección.');e.status=403;throw e}
     const p=await fetchFund();
     started=true;
-    window.DATA=p.DATA;window.PHOTOS=p.PHOTOS||{};
+    window.DATA=p.DATA;window.PHOTOS=p.PHOTOS||{};window.ALIAS=p.alias||'';
     const al=$('alias-val');if(al)al.textContent=p.alias||'';
     const dt=$('ashint-date');if(dt)dt.textContent=(p.DATA&&p.DATA.kpi&&p.DATA.kpi.corte)||'';
     const nn=$('ashint-n');if(nn)nn.textContent=(p.DATA&&p.DATA.kpi&&p.DATA.kpi.total)||'';
@@ -1068,7 +1068,7 @@ if(DATA.kpi.corte && $('ashint-date')) $('ashint-date').textContent=DATA.kpi.cor
 // Consultá tu deuda (pestaña integrada, alimentada desde DATA)
 (function(){
   const sel=$('dz-who'), res=$('dz-res'); if(!sel||!res) return;
-  const CUOTA=10000, TNA=(DATA.kpi&&DATA.kpi.tna)||0, ALIAS='laxviienobera';
+  const CUOTA=10000, TNA=(DATA.kpi&&DATA.kpi.tna)||0, ALIAS=(window.ALIAS||'');
   const nfC=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
   const money=x=>nfC.format(Math.round(x));
   const DAY=86400000;
