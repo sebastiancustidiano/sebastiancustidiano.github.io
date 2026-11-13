@@ -637,6 +637,11 @@ footer{margin-top:26px; text-align:center; font-size:12px; color:var(--faint);}
     <div class="gastos-total" id="gastos-total"></div>
   </section>
 
+  <section class="panel" id="panel-colecta" style="margin-bottom:16px;" hidden>
+    <h2>Colecta · Homenaje a Pichín</h2>
+    <div id="colecta-wrap"></div>
+  </section>
+
   <section class="panel" style="margin-bottom:16px;">
     <h2>Evolución del capital del fondo</h2>
     <div class="sub">Capital neto mes a mes (aportes menos retiros). Hoy la cartera vale <span id="evol-val" class="mono"></span>.</div>
@@ -657,7 +662,6 @@ footer{margin-top:26px; text-align:center; font-size:12px; color:var(--faint);}
       <span class="mono">Total en cartera</span>
       <span class="mono" id="inst-total-v"></span>
     </div>
-    <div class="sub" style="margin-top:8px; font-size:11.5px;">* TNA del Galileo: tasa publicada por el fondo (rend. 30 días × 365/30).</div>
   </section>
 
   <div class="notes">
@@ -865,7 +869,7 @@ const $=id=>document.getElementById(id);
     if(!isMember()){const e=new Error('Tu usuario no tiene acceso a esta sección.');e.status=403;throw e}
     const p=await fetchFund();
     started=true;
-    window.DATA=p.DATA;window.PHOTOS=p.PHOTOS||{};window.ALIAS=p.alias||'';
+    window.DATA=p.DATA;window.PHOTOS=p.PHOTOS||{};window.ALIAS=p.alias||'';window.COLECTA=p.COLECTA||null;
     const al=$('alias-val');if(al)al.textContent=p.alias||'';
     const dt=$('ashint-date');if(dt)dt.textContent=(p.DATA&&p.DATA.kpi&&p.DATA.kpi.corte)||'';
     const nn=$('ashint-n');if(nn)nn.textContent=(p.DATA&&p.DATA.kpi&&p.DATA.kpi.total)||'';
@@ -1161,6 +1165,19 @@ if(DATA.kpi.corte && $('ashint-date')) $('ashint-date').textContent=DATA.kpi.cor
   const rows=g.map(x=>{ sum+=x.imp; return `<div class="grow"><span class="gf">${x.f}</span><span class="gc">${x.c}</span><span class="gi">${money(x.imp)}</span></div>`; }).join('');
   wrap.innerHTML='<div class="ghead"><span class="gf">Fecha</span><span class="gc">Concepto</span><span class="gi">Importe</span></div>'+rows;
   if(tot) tot.innerHTML='Total de gastos: <b>'+money(sum)+'</b>';
+})();
+// Rendición de la colecta (solo para logueados)
+(function(){
+  const c=window.COLECTA, panel=$('panel-colecta'), wrap=$('colecta-wrap');
+  if(!c||!panel||!wrap) return;
+  const e=x=>String(x==null?'':x).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const don=(c.donantes||[]).map(d=>'<div class="grow" style="grid-template-columns:1fr auto"><span class="gc">'+e(d[0])+'</span><span class="gi">'+money(d[1])+'</span></div>').join('');
+  wrap.innerHTML='<div class="sub">Colecta del '+e(c.fecha)+(c.recaudo_por?' · recaudó '+e(c.recaudo_por):'')+'.</div>'
+    +'<div class="ghead" style="grid-template-columns:1fr auto"><span class="gc">Aportó</span><span class="gi">Importe</span></div>'+don
+    +'<div class="grow" style="grid-template-columns:1fr auto"><span class="gc"><b>Total recaudado</b></span><span class="gi"><b>'+money(c.recaudado)+'</b></span></div>'
+    +'<div class="grow" style="grid-template-columns:1fr auto"><span class="gc">'+e(c.gasto_concepto)+'</span><span class="gi">−'+money(c.gasto)+'</span></div>'
+    +'<div class="grow" style="grid-template-columns:1fr auto"><span class="gc"><b>Remanente</b> · '+e(c.destino)+'</span><span class="gi"><b>'+money(c.remanente)+'</b></span></div>';
+  panel.hidden=false;
 })();
 $('k-comun').textContent=money(DATA.kpi.comun);
 $('k-aportantes').textContent=DATA.kpi.aportantes+' / '+DATA.kpi.total;
