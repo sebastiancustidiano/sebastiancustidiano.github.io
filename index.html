@@ -1164,12 +1164,12 @@ const $=id=>document.getElementById(id);
   const base=DATA.kpi.valor||0;
   const pr=String(DATA.kpi.corte||'').split('/');
   const t0=pr.length===3?new Date(+pr[2],+pr[1]-1,+pr[0],18,0,0).getTime():Date.now();
-  const rate=(DATA.inst||[]).reduce((s,i)=>s+((i.tna||0)*(i.val||0)),0)/365/86400000; // $ por ms
+  const rate=(DATA.inst||[]).reduce((s,i)=>s+((i.tna||0)*(i.val||0)),0)/365/86400000*0.5; // $ por ms · ritmo conservador: mitad de la tasa
   const now=()=>base+Math.max(0,Date.now()-t0)*rate;
   const show=v=>{box.textContent='$'+nf2.format(v)};
   const note=document.createElement('div');note.className='k-live';
   const tnas=(DATA.inst||[]).filter(i=>i.tna).map(i=>nf1.format(i.tna*100)+'% TNA');
-  note.textContent=rate>0?('● Estimado en vivo desde el corte del '+(DATA.kpi.corte||'')+(tnas.length?' · '+tnas.join(' + '):'')):'';
+  note.textContent=rate>0?('● Estimado conservador en vivo desde el corte del '+(DATA.kpi.corte||'')+(tnas.length?' · a la mitad de la tasa ('+tnas.join(' + ')+')':'')):'';
   box.insertAdjacentElement('afterend',note);
   const st=document.createElement('style');st.textContent='.k-live{margin-top:4px;font:600 11px/1.3 "IBM Plex Mono",monospace;letter-spacing:.04em;color:var(--muted)}.k-live::first-letter{color:#2e9d5b}';document.head.appendChild(st);
   // arranque: cuenta desde cero hasta el valor de hoy, después sigue sumando centavos
