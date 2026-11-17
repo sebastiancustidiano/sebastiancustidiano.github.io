@@ -1184,7 +1184,6 @@ const $=id=>document.getElementById(id);
   const t1=performance.now(),D=1600;
   (function up(t){const k=Math.min(1,(t-t1)/D),e=1-Math.pow(1-k,3);show(now()*e);if(k<1)requestAnimationFrame(up);else{show(now());if(rate>0)setInterval(()=>show(now()),250)}})(t1);
 })();
-$('k-capital').textContent=money(DATA.kpi.capital);
 $('k-ganancia').textContent='+'+money(DATA.kpi.ganancia);
 $('k-rend').textContent='+'+pct(DATA.kpi.rend);
 $('k-tna').textContent='+'+pct(DATA.kpi.tna);
@@ -1323,7 +1322,6 @@ if(DATA.kpi.corte && $('ashint-date')) $('ashint-date').textContent=DATA.kpi.cor
   panel.hidden=false;
 })();
 $('k-comun').textContent=money(DATA.kpi.comun);
-$('k-aportantes').textContent=DATA.kpi.aportantes+' / '+DATA.kpi.total;
 
 // Franja de último movimiento
 (function(){
