@@ -837,7 +837,29 @@ footer{margin-top:26px; text-align:center; font-size:12px; color:var(--faint);}
     </div>
   </div><!-- /#view-deuda -->
 
-  <div id="management"></div><footer>LA XVII · Un espacio entre amigos<br>Fondo Reencuentro · reparto ponderado por tiempo · uso interno entre participantes</footer>
+  <div id="management"></div><style id="fondo-admin-css">
+#fondo-admin .fa-row{display:grid;grid-template-columns:86px 1fr auto;gap:6px 12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:baseline}
+#fondo-admin .fa-row small{color:var(--muted)}
+#fondo-admin .fa-row.fa-an b,#fondo-admin .fa-row.fa-an .gi{text-decoration:line-through;color:var(--muted)}
+#fondo-admin .fa-act{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+#fondo-admin .fa-act:empty{display:none}
+#fondo-admin .fa-mini{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;width:100%}
+#fondo-admin .fa-mini input{flex:1 1 180px;min-width:0;padding:9px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-2);color:var(--ink)}
+#fondo-admin .field input[type=checkbox],#fondo-admin .fa-mini input[type=checkbox]{width:auto;flex:none;margin:0 8px 0 0;vertical-align:middle}
+#fondo-admin .fa-mini label{font-size:13px}
+#fondo-admin button.plain{padding:8px 14px;cursor:pointer;font-size:13px}
+#fondo-admin .fa-inst{display:grid;grid-template-columns:1.3fr 1.3fr 1fr .6fr 1fr auto;gap:0 10px;align-items:end;border-bottom:1px dashed var(--line);margin-bottom:8px}
+#fondo-admin .fa-inst button{margin-bottom:14px}
+#fondo-admin .fa-op{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+#fondo-admin .fa-prev{border-top:1px solid var(--line-strong)}
+#fondo-admin .fa-prow{display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+#fondo-admin .fa-prow span:nth-child(2){color:var(--muted);text-align:right;min-width:120px}
+#fondo-admin .fa-prow span:nth-child(3){text-align:right;min-width:130px}
+#fondo-admin .fa-ph{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#fondo-admin .fa-ch{font-weight:700;color:var(--accent)}
+#fondo-admin .danger{color:var(--bad)}
+@media(max-width:640px){#fondo-admin .fa-inst{grid-template-columns:1fr 1fr}#fondo-admin .fa-row{grid-template-columns:74px 1fr auto}#fondo-admin .fa-prow{grid-template-columns:1fr;gap:2px}#fondo-admin .fa-prow span:nth-child(2),#fondo-admin .fa-prow span:nth-child(3){text-align:left;min-width:0}#fondo-admin .fa-ph{display:none}}
+</style><div id="fondo-admin-root"></div><footer>LA XVII · Un espacio entre amigos<br>Fondo Reencuentro · reparto ponderado por tiempo · uso interno entre participantes</footer>
 </div>
 
 <script>
@@ -2954,6 +2976,293 @@ const baseRender=render;render=function(){baseRender();try{renderMemorial()}catc
 render();if(window.ensureSigned)ensureSigned(state.photos.concat(Object.values(state.profiles||{}).map(function(q){return {src:q&&q.photo}})).concat(state.photos.map(function(q){return {src:q&&q.poster}}))).then(ch=>{if(ch)render()});
 
 })();
+
+/* ===== Administración del fondo (solo administrador) · etapa 2 del libro de movimientos =====
+   Carga movimientos, marca aportes como invertidos, anula y actualiza la valuación.
+   El cálculo corre acá (fundCompute, idéntico a motor_actual.py) y se guarda todo junto con la RPC
+   admin_fund_apply, que solo acepta al administrador. Sin esa RPC nadie puede escribir. */
+(function(){
+  const root=document.getElementById('fondo-admin-root');
+  if(!root||!window.AUTH||!AUTH.isAdmin()) return;
+  /* Motor del fondo en JS: mismo cálculo que motor/motor_actual.py. Entrada: cfg (fund_cfg) + movs (fund_movs). Salida: DATA. */
+function fundCompute(cfg, movs){
+  const D=s=>{const p=String(s).slice(0,10).split('-');return Date.UTC(+p[0],+p[1]-1,+p[2])};
+  const days=(a,b)=>Math.round((a-b)/86400000);
+  const r0=x=>{const f=Math.floor(x);if(x-f===0.5)return f%2===0?f:f+1;return Math.round(x)};
+  const rn=(x,n)=>Number(Number(x).toFixed(n));
+  const rup=x=>x>=0?Math.floor(x+0.5):-Math.floor(-x+0.5);
+  const NAMES=cfg.nombres, COMP=cfg.comprometido, VTO=cfg.dia_vto, FC=cfg.fondo_comun, MES=cfg.meses_n;
+  const HOY=D(cfg.corte), INI=D(cfg.inicio), hd=new Date(HOY), hy=hd.getUTCFullYear(), hm=hd.getUTCMonth()+1;
+  const act=movs.filter(x=>!x.anulado_at).slice().sort((a,b)=>a.seq-b.seq);
+  const tx=act.filter(x=>x.t==='ap'), gas=act.filter(x=>x.t==='gas'), otros=act.filter(x=>x.t==='col'||x.t==='inv');
+  const COLECTIVO=rn(act.filter(x=>x.t==='col').reduce((s,x)=>s+Number(x.m),0)+(cfg.ajuste_capital||0),2);
+  const G=gas.map(x=>({f:String(x.f).slice(0,10),c:x.c,imp:Number(x.m)}));
+  const INSTR_TOTAL=rn((cfg.inst||[]).reduce((s,i)=>s+Number(i.val),0),2);
+  const GT=rn(G.reduce((s,g)=>s+g.imp,0),2);
+  const ap={},peso={},BI={},pays={},atr={};
+  NAMES.forEach(n=>{ap[n]=0;peso[n]=0;BI[n]=0;pays[n]=[];atr[n]=[]});
+  tx.forEach(x=>{
+    const n=x.c,m=Number(x.m),d=D(x.f),dd=new Date(d);
+    if(!(n in ap)) throw new Error('Aporte de «'+n+'»: no figura en la lista de participantes del fondo.');
+    ap[n]+=m;
+    const dias=x.inv_desde?days(HOY,D(x.inv_desde)):0;
+    peso[n]+=m*dias;
+    if(x.inv_desde) BI[n]+=m;
+    if(!x.no_score){ const at=days(d,Date.UTC(dd.getUTCFullYear(),dd.getUTCMonth(),VTO)); pays[n].push([d,m,at]); atr[n].push(at); }
+  });
+  const sum=a=>a.reduce((s,v)=>s+v,0);
+  const SB=rn(sum(NAMES.map(n=>ap[n])),2), SBI=sum(NAMES.map(n=>BI[n]));
+  const PCOM=FC*days(HOY,INI), WTOT=sum(NAMES.map(n=>peso[n]))+PCOM;
+  const capital=rn(SB+FC+COLECTIVO,2), valor=INSTR_TOTAL, ganancia=rn(valor+GT-capital,2);
+  const punt=n=>{
+    const p=pays[n].filter(q=>q[1]>0);
+    const real=p.length?sum(p.map(q=>q[2]))/p.length:0;
+    const J=sum(p.map(q=>q[1]))/COMP, cov=Math.min(J,MES); let mc=0;
+    for(let i=1;i<=MES;i++){const un=1-Math.max(0,Math.min(1,J-(i-1)));if(un>0)mc+=un*days(HOY,Date.UTC(hy,i-1,VTO))}
+    return (real*cov+mc)/MES;
+  };
+  const cat=s=>{for(const u of cfg.umb){if(s>=u[1])return u[0]}return 'E'};
+  const part=NAMES.map(n=>{
+    const a=ap[n],J=a/COMP,M=Math.max(0,J-MES),mora=Math.max(0,MES-J),Ei=peso[n],BIi=BI[n];
+    const Fi=(WTOT&&SBI)?(ganancia*Ei/WTOT+ganancia*PCOM/WTOT*(BIi/SBI)):0;
+    const Ci=SBI?FC*BIi/SBI:0, val=a+Ci+Fi, pct=ganancia?Fi/ganancia:0;
+    const R=atr[n].length?sum(atr[n])/atr[n].length:0;
+    const bt=J>=MES?cfg.base+Math.min(cfg.tope,(M/cfg.adel_meses)*cfg.tope):cfg.base*J/MES;
+    const score=rup(Math.max(0,Math.min(1000,bt-Math.min(cfg.pmax,Math.max(0,R)*cfg.pdia))));
+    return {n:n,ap:r0(a),val:r0(val),gan:r0(Fi),pct:rn(pct,4),cob:rn(J,1),mora:r0(mora),adel:r0(M),punt:rn(punt(n),1),score:score,cat:cat(score)};
+  });
+  const totpct=sum(part.map(p=>p.pct))||1;
+  part.forEach(p=>{p.gasto=rn(GT*p.pct/totpct,2);p.saldo=rn(p.val-p.mora*COMP-p.gasto,2)});
+  const inst=(cfg.inst||[]).map(i=>({n:i.n,t:i.t,val:rn(i.val,2),rend:Number(i.costo)?rn(Number(i.val)/Number(i.costo)-1,4):0,tna:(i.tna==null||i.tna==='')?null:Number(i.tna),src:i.src==null?null:i.src}));
+  const AB=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'], pm={}, gm={};
+  const ym=f=>{const p=String(f).slice(0,10).split('-');return (+p[0])+'-'+(+p[1])};
+  tx.forEach(x=>{pm[ym(x.f)]=(pm[ym(x.f)]||0)+Number(x.m)});
+  G.forEach(g=>{gm[ym(g.f)]=(gm[ym(g.f)]||0)+g.imp});
+  const evol=[]; let acc=FC;
+  for(let mm=1;mm<=hm;mm++){const a=pm[hy+'-'+mm]||0,r=gm[hy+'-'+mm]||0;acc+=a-r;evol.push({m:AB[mm-1],cap:r0(acc),ap:r0(a),ret:r0(r)})}
+  let ult=null; tx.forEach(x=>{if(!ult||D(x.f)>D(ult.f))ult=x});
+  const dmy=f=>{const p=String(f).slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0]};
+  const ultimo=ult?{n:ult.c,m:r0(Number(ult.m)),f:dmy(ult.f)}:null;
+  const kpi={capital:capital,valor:rn(valor,2),ganancia:ganancia,rend:capital?rn(ganancia/capital,6):0,tna:WTOT?rn(ganancia/WTOT*365,6):0,
+    aportantes:NAMES.filter(n=>ap[n]>0).length,total:NAMES.length,aportes:SB,comun:FC,corte:dmy(cfg.corte),gastos:GT};
+  const ORD={inv:0,col:1,gas:2,ap:3};
+  const lib=tx.map(x=>({f:String(x.f).slice(0,10),t:'ap',c:x.c,m:rn(x.m,2)}))
+    .concat(gas.map(x=>({f:String(x.f).slice(0,10),t:'gas',c:x.c,m:rn(x.m,2)})))
+    .concat(otros.map(x=>{const o={f:String(x.f).slice(0,10),t:x.t,c:x.c};if(x.d)o.d=x.d;o.m=rn(x.m,2);return o}));
+  lib.sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:ORD[a.t]-ORD[b.t]);
+  return {kpi:kpi,part:part,inst:inst,evol:evol,ultimo:ultimo,gastos:G.map(g=>({f:g.f,c:g.c,imp:rn(g.imp,2)})),movs:lib};
+}
+  const URL_='https://tfibvqaohjdbxjjatfnd.supabase.co', KEY='sb_publishable_i-idZRBYTiKgluFEWvSdFA_K9em3MkU';
+  async function req(path,opt){
+    const r=await fetch(URL_+'/rest/v1/'+path,Object.assign({},opt,{headers:Object.assign({apikey:KEY,Authorization:'Bearer '+AUTH.token(),'Content-Type':'application/json'},(opt&&opt.headers)||{})}));
+    let j=null; try{j=await r.json()}catch(e){}
+    if(!r.ok) throw new Error((j&&(j.message||j.hint))||('HTTP '+r.status));
+    return j;
+  }
+  const e=x=>String(x==null?'':x).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const nf2=new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pesos=n=>'$ '+nf2.format(n);
+  const num=s=>{s=String(s==null?'':s).trim().replace(/[\s$]/g,'');if(!s)return NaN;if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');const v=Number(s);return isFinite(v)?v:NaN};
+  const dm=f=>{const p=String(f||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''};
+  const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+  const TIPO={ap:'Aporte',col:'Colecta',gas:'Gasto',inv:'Inversión'};
+  const mesesAl=f=>{const p=String(f).split('-');return p.length===3?Math.max(1,(+p[2]>=10?+p[1]:+p[1]-1)):null};
+
+  let cfg=null, movs=[], colecta=null, stamp=null, ops=[], cfgNew=null, abierto=null, verTodo=false, confirmar=false, aviso='', avisoOk=false, cargando=true, falla='', guardando=false, valDraft=null;
+
+  /* ---------- estado de trabajo = lo guardado + los cambios pendientes ---------- */
+  function trabajo(){
+    const m=movs.map(x=>Object.assign({},x)); let c=colecta?JSON.parse(JSON.stringify(colecta)):null, colCambia=false, n=0;
+    const cw=JSON.parse(JSON.stringify(cfgNew||cfg)); let cfgCambia=!!cfgNew; const r2=v=>Math.round(v*100)/100;
+    /* el efectivo es el instrumento sin TNA; si hay una valuación nueva cargada a mano, manda esa y no se ajusta */
+    const caja=delta=>{ if(cfgNew) return; let i=(cw.inst||[]).findIndex(q=>q.tna==null); if(i<0){ cw.inst=(cw.inst||[]).concat([{n:'Efectivo · disponible',t:'Disponible, sin invertir',costo:0,val:0,tna:null,src:null}]); i=cw.inst.length-1; }
+      cw.inst[i].val=r2(Number(cw.inst[i].val)+delta); cw.inst[i].costo=r2(Number(cw.inst[i].costo)+delta); cfgCambia=true; };
+    ops.forEach(o=>{
+      if(o.op==='add'){ n++; m.push({seq:1e12+n,nuevo:true,f:o.f,t:o.t,c:o.c,d:o.d||null,m:o.m,inv_desde:o.inv_desde||null,no_score:false,colecta:!!o.colecta,anulado_at:null});
+        if(o.caja&&o.t!=='inv') caja(o.t==='gas'?-o.m:o.m);
+        if(o.t==='col'&&o.colecta&&c){ c.donantes=(c.donantes||[]).concat([[o.c,o.m]]); c.recaudado=(c.recaudado||0)+o.m; c.remanente=(c.remanente||0)+o.m; colCambia=true; } }
+      else if(o.op==='anular'){ const x=m.find(y=>y.seq===o.seq); if(x){ x.anulado_at='pendiente'; x.anulado_motivo=o.motivo; if(o.caja&&x.t!=='inv') caja(x.t==='gas'?Number(x.m):-Number(x.m));
+          if(x.t==='col'&&x.colecta&&c){ const i=(c.donantes||[]).findIndex(d=>d[0]===x.c&&Number(d[1])===Number(x.m)); if(i>=0){ c.donantes.splice(i,1); c.recaudado-=Number(x.m); c.remanente-=Number(x.m); colCambia=true; } } } }
+      else if(o.op==='invertir'){ const x=m.find(y=>y.seq===o.seq); if(x) x.inv_desde=o.inv_desde||null; }
+    });
+    return {movs:m, cfg:cw, cfgCambia:cfgCambia, colecta:c, colCambia:colCambia};
+  }
+  const textoOp=o=>{
+    if(o.op==='add') return 'Nuevo · '+TIPO[o.t]+' · '+o.c+' · '+pesos(o.m)+' · '+dm(o.f)+(o.t==='ap'?(o.inv_desde?' · invertido desde '+dm(o.inv_desde):' · sin invertir'):'')+(o.colecta?' · suma a la lista de la colecta':'')+(o.caja&&o.t!=='inv'&&!cfgNew?' · ajusta el efectivo':'');
+    const x=movs.find(y=>y.seq===o.seq)||{};
+    if(o.op==='anular') return 'Anular · '+TIPO[x.t]+' · '+x.c+' · '+pesos(Number(x.m))+' · '+dm(x.f)+' · motivo: '+o.motivo+(o.caja&&x.t!=='inv'&&!cfgNew?' · revierte el efectivo':'');
+    return 'Inversión · '+x.c+' · '+pesos(Number(x.m))+' del '+dm(x.f)+(o.inv_desde?' · invertido desde '+dm(o.inv_desde):' · pasa a sin invertir');
+  };
+
+  /* ---------- carga ---------- */
+  async function cargar(){
+    cargando=true; falla=''; pintar();
+    try{
+      const r=await Promise.all([req('fund_cfg?id=eq.main&select=cfg'),req('fund_movs?select=*&order=seq.asc'),req('fund_data?id=eq.main&select=updated_at,colecta:payload->COLECTA')]);
+      if(!r[0].length) throw new Error('Falta la configuración del fondo.');
+      cfg=r[0][0].cfg; movs=r[1].map(x=>Object.assign({},x,{m:Number(x.m)})); stamp=r[2][0].updated_at; colecta=r[2][0].colecta||null;
+      ops=[]; cfgNew=null; abierto=null; confirmar=false; valDraft=null;
+    }catch(err){ falla=err.message||String(err); }
+    cargando=false; pintar();
+  }
+
+  /* ---------- pantalla ---------- */
+  function filaInst(i,k){
+    return '<div class="fa-inst" data-k="'+k+'"><label class="field">Instrumento<input data-i="n" maxlength="80" value="'+e(i.n)+'"></label>'
+      +'<label class="field">Detalle<input data-i="t" maxlength="120" value="'+e(i.t||'')+'"></label>'
+      +'<label class="field">Valor hoy ($)<input data-i="val" inputmode="decimal" value="'+e(nf2.format(Number(i.val)||0))+'"></label>'
+      +'<label class="field">TNA %<input data-i="tna" inputmode="decimal" value="'+(i.tna==null?'':e(String(Math.round(Number(i.tna)*10000)/100).replace('.',',')))+'"></label>'
+      +'<label class="field">Costo ($)<input data-i="costo" inputmode="decimal" value="'+e(nf2.format(Number(i.costo)||0))+'"></label>'
+      +'<button type="button" class="plain" data-act="inst-del" data-k="'+k+'">Quitar</button></div>';
+  }
+  function pintar(){
+    const foco=document.activeElement&&root.contains(document.activeElement)?document.activeElement.id:null;
+    const guard={}; root.querySelectorAll('#fa-form input,#fa-form select').forEach(el=>{ if(el.id) guard[el.id]=el.type==='checkbox'?el.checked:el.value; });
+    let h='<section class="community-section" id="fondo-admin"><p class="eyebrow">SOLO ADMINISTRADOR</p><h2>Administración del fondo</h2>'
+      +'<p class="intro">Cargá movimientos y actualizá la valuación. Nada se publica hasta que confirmes abajo; al guardar, las cifras, el libro de movimientos y la lista de la colecta se actualizan juntos.</p>';
+    if(cargando){ root.innerHTML=h+'<p class="muted">Cargando el libro del fondo…</p></section>'; return; }
+    if(falla){ root.innerHTML=h+'<div class="tools"><p class="danger">No se pudo abrir el libro del fondo: '+e(falla)+'</p><div class="actions"><button type="button" class="plain" data-act="recargar">Reintentar</button></div></div></section>'; return; }
+    const w=trabajo(); let antes=null, despues=null, err='';
+    try{ antes=fundCompute(cfg,movs); despues=fundCompute(w.cfg,w.movs); if((w.cfg.inst||[]).some(i=>Number(i.val)<0)) err='El efectivo de la cartera quedaría negativo. Revisá los montos o cargá la valuación.'; }catch(x){ err=x.message||String(x); }
+    const pub=window.DATA&&window.DATA.kpi, desfase=antes&&pub&&(antes.kpi.capital!==pub.capital||antes.kpi.valor!==pub.valor||antes.kpi.ganancia!==pub.ganancia);
+
+    /* 1 · cargar movimiento */
+    h+='<details class="tools" open><summary>Cargar movimiento</summary><div><form id="fa-form" autocomplete="off"><div class="form-grid">'
+      +'<label class="field">Fecha<input id="fa-f" type="date" required value="'+hoy()+'"></label>'
+      +'<label class="field">Tipo<select id="fa-t"><option value="ap">Aporte de un compañero</option><option value="col">Colecta · va al fondo común</option><option value="gas">Gasto</option><option value="inv">Inversión (queda en el libro, no cambia cifras)</option></select></label>'
+      +'<label class="field" id="fa-who-w">Compañero<select id="fa-who">'+cfg.nombres.map(n=>'<option>'+e(n)+'</option>').join('')+'</select></label>'
+      +'<label class="field" id="fa-c-w" hidden><span id="fa-c-l">Concepto</span><input id="fa-c" maxlength="120"></label>'
+      +'<label class="field">Monto en pesos<input id="fa-m" inputmode="decimal" placeholder="20.000,00" required></label>'
+      +'<label class="field" id="fa-est-w">Estado<select id="fa-est"><option value="sin">Sin invertir</option><option value="inv">Invertido desde una fecha</option></select></label>'
+      +'<label class="field" id="fa-inv-w" hidden>Invertido desde<input id="fa-inv" type="date"></label>'
+      +'<label class="field" id="fa-d-w" hidden>Detalle (opcional)<input id="fa-d" maxlength="160"></label>'
+      +'</div><label class="field" id="fa-col-w" hidden><span><input type="checkbox" id="fa-col" checked> Sumarlo a la lista de la colecta'+(colecta&&colecta.gasto_concepto?' ('+e(colecta.gasto_concepto)+')':'')+'</span></label>'
+      +'<label class="field" id="fa-caja-w"><span><input type="checkbox" id="fa-caja" checked> La plata ya está en la cuenta: ajustar el efectivo de la cartera por este monto</span></label>'
+      +'<div class="actions"><button class="primary">Agregar a los cambios</button></div></form></div></details>';
+
+    /* 2 · valuación */
+    const c=valDraft||w.cfg;
+    h+='<details class="tools"'+(cfgNew||valDraft?' open':'')+'><summary>Valuación de la cartera y fecha de corte</summary><div>'
+      +'<p class="muted">Cargá lo que muestra el broker. El valor del fondo es la suma de los instrumentos; la TNA mueve el contador en vivo. El instrumento sin TNA es el efectivo. Si aplicás una valuación, manda sobre los ajustes automáticos de efectivo.</p>'
+      +'<div class="form-grid"><label class="field">Fecha de corte<input id="fa-corte" type="date" value="'+e(c.corte)+'"></label>'
+      +'<label class="field">Cuotas vencidas a esa fecha<input id="fa-meses" type="number" min="1" max="12" value="'+e(c.meses_n)+'"></label></div>'
+      +'<div id="fa-insts">'+(c.inst||[]).map(filaInst).join('')+'</div>'
+      +'<div class="actions"><button type="button" class="plain" data-act="inst-add">+ Instrumento</button><button type="button" class="primary" data-act="val-ok">Aplicar a los cambios</button></div></div></details>';
+
+    /* 3 · libro */
+    const lista=w.movs.slice().sort((a,b)=>a.f<b.f?1:a.f>b.f?-1:b.seq-a.seq), ver=verTodo?lista:lista.slice(0,12);
+    h+='<details class="tools"><summary>Libro del fondo · '+movs.length+' movimientos</summary><div>'
+      +ver.map(x=>{
+        const an=!!x.anulado_at, pend=x.nuevo||ops.some(o=>o.seq===x.seq);
+        let sub=TIPO[x.t]+(x.t==='ap'?(x.inv_desde?' · invertido desde '+dm(x.inv_desde):' · sin invertir'):'')+(x.d?' · '+x.d:'')+(x.colecta?' · en la lista de la colecta':'');
+        if(an) sub+=' · ANULADO'+(x.anulado_motivo?': '+x.anulado_motivo:'');
+        if(pend) sub+=' · cambio sin guardar';
+        let act='';
+        if(!an&&!x.nuevo){
+          if(abierto&&abierto.seq===x.seq&&abierto.k==='anular') act='<span class="fa-mini"><input id="fa-motivo" maxlength="160" placeholder="Motivo de la anulación">'+(x.t!=='inv'?'<label><input type="checkbox" id="fa-ancaja" checked> Revertir también el efectivo</label>':'')+'<button type="button" class="plain" data-act="anular-ok" data-seq="'+x.seq+'">Anular</button><button type="button" class="plain" data-act="cerrar">No</button></span>';
+          else if(abierto&&abierto.seq===x.seq&&abierto.k==='inv') act='<span class="fa-mini"><input id="fa-invd" type="date" value="'+e(x.inv_desde||x.f)+'"><button type="button" class="plain" data-act="inv-ok" data-seq="'+x.seq+'">Invertido desde esa fecha</button><button type="button" class="plain" data-act="inv-no" data-seq="'+x.seq+'">Sin invertir</button><button type="button" class="plain" data-act="cerrar">Cerrar</button></span>';
+          else act=(x.t==='ap'?'<button type="button" class="plain" data-act="abrir" data-k="inv" data-seq="'+x.seq+'">Inversión…</button>':'')+'<button type="button" class="plain" data-act="abrir" data-k="anular" data-seq="'+x.seq+'">Anular…</button>';
+        }
+        return '<div class="fa-row'+(an?' fa-an':'')+'"><span class="gf">'+e(dm(x.f))+'</span><span class="gc"><b>'+e(x.c)+'</b><br><small>'+e(sub)+'</small></span><span class="gi">'+e(pesos(Number(x.m)))+'</span><span class="fa-act">'+act+'</span></div>';
+      }).join('')
+      +(lista.length>12?'<div class="actions"><button type="button" class="plain" data-act="ver">'+(verTodo?'Ver menos':'Ver los '+lista.length)+'</button></div>':'')+'</div></details>';
+
+    /* 4 · cambios pendientes y vista previa */
+    h+='<div class="tools" id="fa-pend"><h3 style="margin:0 0 10px">Cambios sin guardar</h3>';
+    if(desfase) h+='<p class="danger">Atención: las cifras publicadas no coinciden con las del libro. No guardes hasta revisarlo.</p>';
+    if(err) h+='<p class="danger">'+e(err)+'</p>';
+    if(!ops.length&&!cfgNew) h+='<p class="muted">No hay cambios pendientes.</p>';
+    else{
+      h+=ops.map((o,i)=>'<div class="fa-op"><span>'+e(textoOp(o))+'</span><button type="button" class="plain" data-act="op-del" data-i="'+i+'" aria-label="Quitar este cambio">Quitar</button></div>').join('');
+      if(cfgNew) h+='<div class="fa-op"><span>Nueva valuación · corte '+e(dm(cfgNew.corte))+' · '+e(cfgNew.meses_n)+' cuotas vencidas · cartera '+e(pesos((cfgNew.inst||[]).reduce((s,i)=>s+Number(i.val),0)))+'</span><button type="button" class="plain" data-act="val-del">Quitar</button></div>';
+      if(antes&&despues){
+        const k=[['Capital del fondo','capital'],['Valor de la cartera','valor'],['Ganancia acumulada','ganancia'],['Aportes de los compañeros','aportes'],['Gastos','gastos']];
+        const cambian=despues.part.filter((p,i)=>p.gan!==antes.part[i].gan||p.score!==antes.part[i].score||p.ap!==antes.part[i].ap).length;
+        h+='<h3 style="margin:16px 0 6px">Así cambia el fondo</h3><div class="fa-prev"><div class="fa-prow fa-ph"><span></span><span>Hoy</span><span>Al guardar</span></div>'
+          +k.map(r=>'<div class="fa-prow"><span>'+r[0]+'</span><span>'+e(pesos(antes.kpi[r[1]]))+'</span><span'+(antes.kpi[r[1]]!==despues.kpi[r[1]]?' class="fa-ch"':'')+'>'+e(pesos(despues.kpi[r[1]]))+'</span></div>').join('')
+          +'<div class="fa-prow"><span>Fecha de corte</span><span>'+e(antes.kpi.corte)+'</span><span'+(antes.kpi.corte!==despues.kpi.corte?' class="fa-ch"':'')+'>'+e(despues.kpi.corte)+'</span></div>'
+          +'<div class="fa-prow"><span>Participantes con algún cambio (aporte, ganancia o puntaje)</span><span></span><span'+(cambian?' class="fa-ch"':'')+'>'+cambian+' de '+despues.part.length+'</span></div>'
+          +'<div class="fa-prow"><span>Lista de la colecta</span><span></span><span'+(w.colCambia?' class="fa-ch"':'')+'>'+(w.colCambia?(w.colecta.donantes.length+' donantes · recaudado '+e(pesos(w.colecta.recaudado))):'Sin cambios')+'</span></div></div>';
+      }
+      if(antes&&despues&&antes.kpi.ganancia!==despues.kpi.ganancia) h+='<p class="muted" style="margin-top:10px">La ganancia acumulada cambia. Es lo esperado si actualizaste la valuación; si solo cargaste aportes, colecta o gastos, revisá el efectivo de la cartera.</p>';
+      h+='<div class="actions" style="margin-top:14px">'+(confirmar
+        ?'<span class="muted">Se publica para todos los compañeros. ¿Confirmás?</span><button type="button" class="primary" data-act="guardar-si"'+(guardando?' disabled':'')+'>Sí, guardar y publicar</button><button type="button" class="plain" data-act="guardar-no">No</button>'
+        :'<button type="button" class="primary" data-act="guardar"'+(err||desfase?' disabled':'')+'>Guardar y publicar</button><button type="button" class="plain" data-act="descartar">Descartar cambios</button>')+'</div>';
+    }
+    h+='<p id="fa-msg" class="status'+(avisoOk?'':' danger')+'" role="status" aria-live="polite">'+e(aviso)+'</p></div></section>';
+    const abiertos=[...root.querySelectorAll('details.tools')].map(d=>d.open);
+    root.innerHTML=h;
+    const dd=[...root.querySelectorAll('details.tools')]; if(abiertos.length===dd.length) dd.forEach((d,i)=>{ if(!(i===1&&(cfgNew||valDraft))) d.open=abiertos[i]; });
+    Object.keys(guard).forEach(id=>{const el=document.getElementById(id); if(el){ if(el.type==='checkbox') el.checked=guard[id]; else el.value=guard[id]; }});
+    tipoUI(); if(foco){const el=document.getElementById(foco); if(el) el.focus();}
+  }
+  function tipoUI(){
+    const t=(document.getElementById('fa-t')||{}).value, s=(id,on)=>{const el=document.getElementById(id); if(el) el.hidden=!on;};
+    if(!t) return;
+    s('fa-who-w',t==='ap'); s('fa-est-w',t==='ap'); s('fa-inv-w',t==='ap'&&document.getElementById('fa-est').value==='inv');
+    s('fa-c-w',t!=='ap'); s('fa-d-w',t!=='ap'); s('fa-col-w',t==='col'&&!!colecta); s('fa-caja-w',t!=='inv');
+    const l=document.getElementById('fa-c-l'); if(l) l.textContent=t==='col'?'Quién aportó (apellido y nombre) o concepto':'Concepto';
+  }
+  const decir=(t,ok)=>{aviso=t||'';avisoOk=!!ok;};
+
+  /* ---------- acciones ---------- */
+  root.addEventListener('change',ev=>{
+    if(ev.target.id==='fa-t'||ev.target.id==='fa-est') tipoUI();
+    if(ev.target.id==='fa-corte'){ const m=mesesAl(ev.target.value), el=document.getElementById('fa-meses'); if(m&&el) el.value=m; tomarVal(); }
+  });
+  const tomarVal=()=>{ const co=document.getElementById('fa-corte'); if(co) valDraft={corte:co.value,meses_n:document.getElementById('fa-meses').value,inst:leerInsts()}; };
+  root.addEventListener('input',ev=>{ if(ev.target.id==='fa-corte'||ev.target.id==='fa-meses'||ev.target.closest('.fa-inst')) tomarVal(); });
+  root.addEventListener('submit',ev=>{
+    if(ev.target.id!=='fa-form') return; ev.preventDefault();
+    const g=id=>document.getElementById(id), t=g('fa-t').value, f=g('fa-f').value, m=num(g('fa-m').value);
+    const c=t==='ap'?g('fa-who').value:g('fa-c').value.trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f)){ decir('Falta la fecha.'); return pintar(); }
+    if(!c){ decir('Falta '+(t==='col'?'quién aportó o el concepto.':'el concepto.')); return pintar(); }
+    if(!(m>0)){ decir('El monto tiene que ser mayor que cero. Ejemplo: 20.000,00'); return pintar(); }
+    let inv=null; if(t==='ap'&&g('fa-est').value==='inv'){ inv=g('fa-inv').value||f; }
+    ops.push({op:'add',f:f,t:t,c:c,d:t==='ap'?null:(g('fa-d').value.trim()||null),m:Math.round(m*100)/100,inv_desde:inv,colecta:t==='col'&&!!colecta&&g('fa-col').checked,caja:t!=='inv'&&g('fa-caja').checked});
+    g('fa-m').value=''; g('fa-c').value=''; g('fa-d').value=''; confirmar=false; decir('Agregado a los cambios. Revisá la vista previa y guardá.',true); pintar();
+    const p=document.getElementById('fa-pend'); if(p&&p.scrollIntoView) p.scrollIntoView({block:'nearest'});
+  });
+  function leerInsts(){
+    return [...root.querySelectorAll('.fa-inst')].map(r=>{const v=k=>r.querySelector('[data-i="'+k+'"]').value.trim(); const tna=v('tna')===''?null:num(v('tna'))/100, val=num(v('val')), costo=v('costo')===''?val:num(v('costo'));
+      return {n:v('n'),t:v('t'),costo:costo,val:val,tna:tna,src:null};});
+  }
+  root.addEventListener('click',async ev=>{
+    const b=ev.target.closest('[data-act]'); if(!b) return; const a=b.dataset.act, seq=Number(b.dataset.seq);
+    decir('');
+    if(a==='recargar') return cargar();
+    if(a==='ver'){ verTodo=!verTodo; }
+    else if(a==='abrir'){ abierto={seq:seq,k:b.dataset.k}; }
+    else if(a==='cerrar'){ abierto=null; }
+    else if(a==='anular-ok'){ const mo=(document.getElementById('fa-motivo').value||'').trim(); if(!mo){ decir('Escribí el motivo de la anulación.'); }else{ ops=ops.filter(o=>o.seq!==seq); ops.push({op:'anular',seq:seq,motivo:mo,caja:!!(document.getElementById('fa-ancaja')||{}).checked}); abierto=null; confirmar=false; } }
+    else if(a==='inv-ok'||a==='inv-no'){ const d=a==='inv-ok'?document.getElementById('fa-invd').value:null; if(a==='inv-ok'&&!d){ decir('Elegí la fecha desde la que está invertido.'); }else{ ops=ops.filter(o=>!(o.op==='invertir'&&o.seq===seq)); ops.push({op:'invertir',seq:seq,inv_desde:d}); abierto=null; confirmar=false; } }
+    else if(a==='op-del'){ ops.splice(Number(b.dataset.i),1); confirmar=false; }
+    else if(a==='inst-add'||a==='inst-del'){ const l=leerInsts(); if(a==='inst-add') l.push({n:'',t:'',costo:0,val:0,tna:null,src:null}); else l.splice(Number(b.dataset.k),1);
+      document.getElementById('fa-insts').innerHTML=l.map(filaInst).join(''); tomarVal(); return; }
+    else if(a==='val-ok'){ const l=leerInsts(), co=document.getElementById('fa-corte').value, me=Number(document.getElementById('fa-meses').value);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(co)) decir('Falta la fecha de corte.');
+      else if(!(me>=1&&me<=12&&Math.floor(me)===me)) decir('Las cuotas vencidas van de 1 a 12.');
+      else if(!l.length||l.some(i=>!i.n||!(i.val>=0)||isNaN(i.costo)||(i.tna!==null&&isNaN(i.tna)))) decir('Revisá los instrumentos: cada uno necesita nombre y valor.');
+      else{ cfgNew=Object.assign({},cfg,{corte:co,meses_n:me,inst:l}); valDraft=null; confirmar=false; decir('Valuación agregada a los cambios.',true); } }
+    else if(a==='val-del'){ cfgNew=null; valDraft=null; confirmar=false; }
+    else if(a==='descartar'){ ops=[]; cfgNew=null; valDraft=null; abierto=null; confirmar=false; }
+    else if(a==='guardar'){ confirmar=true; }
+    else if(a==='guardar-no'){ confirmar=false; }
+    else if(a==='guardar-si'){
+      if(guardando) return; guardando=true; pintar();
+      try{
+        const w=trabajo(), data=fundCompute(w.cfg,w.movs);
+        await req('rpc/admin_fund_apply',{method:'POST',body:JSON.stringify({p_ops:ops,p_data:data,p_colecta:w.colCambia?w.colecta:null,p_cfg:w.cfgCambia?w.cfg:null,p_expect:stamp})});
+        guardando=false; ops=[]; cfgNew=null; confirmar=false; decir('Guardado y publicado. Recargando la página…',true); pintar();
+        setTimeout(()=>location.reload(),1400); return;
+      }catch(x){ guardando=false; confirmar=false; decir('No se guardó: '+(x.message||x)); }
+    }
+    pintar();
+  });
+  cargar();
+})();
+/* ===== fin administración del fondo ===== */
 </script><script>
 (function(){
  function run(){
