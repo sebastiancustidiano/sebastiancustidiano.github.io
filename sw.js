@@ -4,7 +4,7 @@
      las cifras del fondo, fotos y datos de compañeros siempre van por red y con login.
    - La página (index.html, sin cifras) se pide primero a la red; la copia guardada
      solo se usa si no hay conexión. */
-const VERSION = 'laxvii-v1';
+const VERSION = 'laxvii-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png',
                '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon-32.png'];
 
