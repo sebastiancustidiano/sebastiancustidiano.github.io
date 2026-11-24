@@ -304,6 +304,10 @@ body.mv-on #photo-grid .photo-card.mv-sel{outline:4px solid #d7262e!important}
 body.mv-on #photo-grid .photo-card.mv-sel img{opacity:.8}
 body.mv-on #photo-grid .photo-card.mv-sel .photo-open::after{content:'✓';background:#d7262e;color:#fff;font:700 15px/20px sans-serif;text-align:center}
 </style>
+<style id="asistencia-2411-css">
+.rsvp-fondo{font-size:12px;opacity:.85}
+.fa-asist{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#e8f3ff;border:1px solid #9cc4ec;color:#0e2a47}
+</style>
 </head>
 <body class="locked booting">
 
@@ -693,8 +697,8 @@ footer{margin-top:26px; text-align:center; font-size:12px; color:var(--faint);}
 <div id="rsvp-modal" class="marcha-overlay" role="dialog" aria-modal="true" aria-labelledby="rsvp-title" aria-hidden="true">
   <div class="marcha-card">
     <button class="marcha-x" type="button" aria-label="Cerrar" id="rsvp-x">×</button>
-    <div class="marcha-head"><span class="marcha-eyebrow">REUNIÓN · 20 AL 23 DE NOVIEMBRE</span><h2 id="rsvp-title">¿Venís?</h2></div>
-    <p class="rsvp-cnt"><b id="rsvp-n3">0</b> ya confirmaron</p><select id="rsvp-name" hidden aria-hidden="true"><option value="">Cargando…</option></select><input id="rsvp-q" class="rsvp-q" type="search" placeholder="🔍 Buscá tu apellido" autocomplete="off" aria-label="Buscá tu apellido"><p class="rsvp-hint">Tocá tu nombre y confirmá.</p><div id="rsvp-pick" class="rsvp-pick"></div>
+    <div class="marcha-head"><span class="marcha-eyebrow">REUNIÓN · 19 AL 22 DE NOVIEMBRE DE 2027</span><h2 id="rsvp-title">¿Venís?</h2></div>
+    <p class="rsvp-cnt"><b id="rsvp-n3">0</b> ya confirmaron</p><select id="rsvp-name" hidden aria-hidden="true"><option value="">Cargando…</option></select><input id="rsvp-q" class="rsvp-q" type="search" placeholder="🔍 Buscá tu apellido" autocomplete="off" aria-label="Buscá tu apellido"><p class="rsvp-hint">Tocá tu nombre y confirmá.</p><p class="rsvp-hint rsvp-fondo">Al confirmar te sumás como aportante del Fondo Reencuentro de esta reunión.</p><div id="rsvp-pick" class="rsvp-pick"></div>
     <div class="actions"><button class="primary" type="button" id="rsvp-go">Confirmo que voy</button></div>
     <p class="gate-msg" id="rsvp-msg" role="status"></p>
     <details class="rsvp-conf"><summary>Ver confirmados (<span id="rsvp-n2">0</span>)</summary>
@@ -1061,16 +1065,19 @@ const $=id=>document.getElementById(id);
   /* perfiles-2411: cada usuario recibe solo las filas que puede leer (main = fondo, comun, reunion) */
   async function fetchFund(){
     const h={apikey:KEY,Authorization:'Bearer '+token()};
-    const [r,rp]=await Promise.all([
+    const uidq=encodeURIComponent((sess&&sess.user&&sess.user.id)||'');
+    const [r,rp,rn]=await Promise.all([
       fetch(URL_+'/rest/v1/fund_data?select=id,payload',{headers:h}),
-      fetch(URL_+'/rest/v1/permisos?select=perfil,perms',{headers:h}).catch(()=>null)]);
+      fetch(URL_+'/rest/v1/permisos?select=perfil,perms',{headers:h}).catch(()=>null),
+      fetch(URL_+'/rest/v1/padron_user?select=nombre&user_id=eq.'+uidq,{headers:h}).catch(()=>null)]);   /* asistencia-2411 */
     if(!r.ok){const e=new Error('No se pudieron cargar los datos (HTTP '+r.status+').');e.status=r.status;throw e}
     const rows=await r.json(),by={};
     (rows||[]).forEach(x=>{if(x&&x.id&&x.payload)by[x.id]=x.payload});
     let perms=['*'];                               /* sin fila en permisos = acceso completo */
     if(rp&&rp.ok){try{const j=await rp.json();if(j&&j.length)perms=j[0].perms||[]}catch(e){}}
     if(!by.main&&!by.comun&&perms.includes('*'))throw new Error('Los datos todavía no están disponibles.');
-    return {by,perms};
+    let mi=null;if(rn&&rn.ok){try{const j=await rn.json();if(j&&j.length)mi=j[0].nombre}catch(e){}}
+    return {by,perms,mi};
   }
   function runDeferred(ids){
     ids.forEach(id=>{const t=$(id);if(!t)return;const sc=document.createElement('script');sc.textContent=t.textContent;document.body.appendChild(sc)});
@@ -1091,7 +1098,7 @@ const $=id=>document.getElementById(id);
     window.PERM_PHOTO=x=>!!x&&has('fotos:'+(x.category||''));
     window.PERM_NEWALB=has('fotos:*');
     window.DATA=p?p.DATA:null;window.PHOTOS=(f.by.comun&&f.by.comun.PHOTOS)||(p&&p.PHOTOS)||{};
-    window.ALIAS=p?(p.alias||''):'';window.COLECTA=p?(p.COLECTA||null):null;window.REUNION=f.by.reunion||null;window.PADRON=f.by.padron||null;/* padron-2411 */
+    window.ALIAS=p?(p.alias||''):'';window.COLECTA=p?(p.COLECTA||null):null;window.REUNION=f.by.reunion||null;window.PADRON=f.by.padron||null;window.MI_NOMBRE=f.mi||null;/* padron-2411 */
     const B=document.body.classList;
     B.toggle('is-admin',isAdmin());B.toggle('no-fondo',!p);B.toggle('no-reunion',!has('reunion'));B.toggle('no-albnew',!has('fotos:*'));
     B.toggle('no-fotos',!(isAdmin()||perms.some(k=>k==='*'||k.indexOf('fotos:')===0)));
@@ -1213,8 +1220,8 @@ const $=id=>document.getElementById(id);
   }
   async function mountCierre(act){
     const after=$('fondo-admin-root');if(!after||$('gest-cierre'))return;
-    let cfg=null,stamp=null;
-    try{const r=await Promise.all([getJ('fund_cfg?id=eq.main&select=cfg'),getJ('fund_data?id=eq.main&select=updated_at')]);cfg=r[0][0]&&r[0][0].cfg;stamp=r[1][0]&&r[1][0].updated_at}catch(e){}
+    let cfg=null,stamp=null,conf=[];
+    try{const r=await Promise.all([getJ('fund_cfg?id=eq.main&select=cfg'),getJ('fund_data?id=eq.main&select=updated_at'),getJ('asistencia?select=pkey&order=pkey').catch(()=>[])]);cfg=r[0][0]&&r[0][0].cfg;stamp=r[1][0]&&r[1][0].updated_at;conf=(r[2]||[]).map(x=>x.pkey)}catch(e){}
     if(!cfg)return;
     const nueva=/^\d{4}$/.test(act)?String(+act+1):'';
     const valor=(window.DATA&&window.DATA.kpi&&Number(window.DATA.kpi.valor))||0;
@@ -1229,7 +1236,7 @@ const $=id=>document.getElementById(id);
       +'<label class="field">Cuota mensual ($)<input id="gc-cuota" inputmode="decimal" value="'+escG(nfG.format(Number(cfg.comprometido)||0))+'"></label>'
       +'<label class="field">Vence el día<input id="gc-vto" type="number" min="1" max="28" value="'+escG(cfg.dia_vto||10)+'"></label>'
       +'</div>'
-      +'<label class="field">Aportantes de la gestión nueva (uno por renglón, como figuran en el padrón)<textarea id="gc-nombres" rows="8">'+escG((cfg.nombres||[]).join('\n'))+'</textarea></label>'
+      +'<label class="field">Aportantes de la gestión nueva: los que confirmaron asistencia ('+conf.length+'). Se suman y salen solos cuando confirman o quitan su confirmación.<textarea id="gc-nombres" rows="8" readonly>'+escG(conf.join('\n'))+'</textarea></label>'
       +'<div class="gest-res" id="gc-res"></div>'
       +'<label class="field">Para confirmar escribí <b>CERRAR '+escG(act)+'</b><input id="gc-conf" autocomplete="off" placeholder="CERRAR '+escG(act)+'"></label>'
       +'<div class="actions"><button class="primary" type="button" id="gc-go" disabled>Cerrar gestión '+escG(act)+'</button></div>'
@@ -1240,7 +1247,7 @@ const $=id=>document.getElementById(id);
       const nom=$('gc-nueva').value.trim(),ini=$('gc-inicio').value,saldo=numG($('gc-saldo').value),cuota=numG($('gc-cuota').value),vto=parseInt($('gc-vto').value,10);
       const nombres=[...new Set($('gc-nombres').value.split('\n').map(x=>x.trim()).filter(Boolean))];
       const err=!nom?'Poné el nombre de la gestión nueva.':nom===act?'La gestión nueva tiene que tener otro nombre.':!/^\d{4}-\d{2}-\d{2}$/.test(ini)?'Elegí la fecha de inicio.'
-        :!(saldo>=0)?'Revisá el saldo inicial.':!(cuota>0)?'Revisá la cuota mensual.':!(vto>=1&&vto<=28)?'El vencimiento va del día 1 al 28.':!nombres.length?'Cargá al menos un aportante.':'';
+        :!(saldo>=0)?'Revisá el saldo inicial.':!(cuota>0)?'Revisá la cuota mensual.':!(vto>=1&&vto<=28)?'El vencimiento va del día 1 al 28.':'';
       return {nom,ini,saldo,cuota,vto,nombres,err};
     };
     const pintarRes=()=>{
@@ -3003,10 +3010,10 @@ el('community').innerHTML=`
 <section class="community-section" id="recorrido"><p class="eyebrow">VOLVER A CAMINAR LOS PASILLOS</p><h2>Recorrido virtual por el Liceo</h2><p class="intro">El Liceo Naval Militar Almirante Storni ofrece un paseo 360° por sus instalaciones. Ideal para ver cómo está hoy la escuela antes del reencuentro.</p><a class="tour-card" href="https://www.lnas.edu.ar/recorrido-virtual/" target="_blank" rel="noopener"><span class="tour-ico">🧭</span><span class="tour-txt"><b>Hacer el recorrido 360°</b><small>Se abre en el sitio oficial del Liceo · lnas.edu.ar</small></span><span class="tour-go">↗</span></a></section>
 <section class="community-section" id="cumples"><div class="section-top"><div><p class="eyebrow">QUE NO FALTE EL SALUDO</p><h2>Cumpleaños</h2></div><button class="secondary" id="calendar-export">↓ Calendario .ics</button></div><p class="intro">Del más próximo al más lejano. Cada uno carga el suyo con «Editar mi ficha» en Compañeros.</p><div class="panel" id="birthday-list"></div></section>
 <div id="app-status" class="status" role="status" aria-live="polite"></div>`;
-el('management').innerHTML=`<section class="community-section" id="gestion"><p class="eyebrow">TODO EN UN LUGAR</p><h2>Gestión y respaldo</h2><p class="intro">Panel del administrador: respaldo y gastos pendientes. Solo vos lo ves.</p>
+el('management').innerHTML=`<section class="community-section" id="gestion"><p class="eyebrow">TODO EN UN LUGAR</p><h2>Gestión y respaldo</h2><p class="intro">Panel del administrador: respaldo. Solo vos lo ves.</p>
 <details class="tools" open><summary>Respaldo y traslado</summary><div><p class="muted">El respaldo incluye fotos, comentarios, perfiles, anécdotas, firmas y gastos pendientes. No modifica los datos financieros originales. Descargalo antes de cambiar de navegador o borrar sus datos.</p><div class="actions"><button class="primary" id="backup-export">↓ Descargar respaldo</button><label class="secondary">↑ Importar respaldo<input id="backup-import" type="file" accept="application/json,.json" hidden></label></div><p class="muted">Al importar, se reemplaza la comunidad local con el contenido del respaldo. Podrás revisar las cantidades antes de confirmar.</p></div></details>
 <details class="tools"><summary>Editar ficha (foto, dato y cumpleaños)</summary><div><form id="profile-form"><div class="form-grid"><label class="field">Compañero<select id="profile-name">${options(names)}</select></label><label class="field">Nombre y apellido<input id="profile-fullname" maxlength="120" placeholder="Nombre completo (corregí/completá)"></label><label class="field">Dato para compartir<input id="profile-bio" maxlength="160" placeholder="Ciudad, profesión o una frase"></label><label class="field">Cumpleaños · día<input id="profile-day" type="number" min="1" max="31"></label><label class="field">Mes<select id="profile-month"><option value="">Sin fecha</option>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}">${m}</option>`).join('')}</select></label></div><label class="field">Foto de perfil (opcional)<input type="file" accept="image/jpeg,image/png,image/webp" id="profile-photo"></label><label class="field"><span><input type="checkbox" id="profile-remove"> Quitar la foto de perfil guardada</span></label><button class="primary">Guardar ficha</button></form></div></details>
-<details class="tools"><summary>Gastos pendientes del encuentro</summary><div><p class="muted">Separados de los gastos realizados: no alteran el saldo registrado del fondo.</p><form id="pending-form"><div class="form-grid"><label class="field">Concepto<input id="pending-name" required maxlength="160"></label><label class="field">Importe estimado en pesos<input id="pending-amount" type="number" required min="0.01" step="0.01"></label></div><button class="primary">Agregar pendiente</button></form><div id="pending-list"></div></div></details>
+<!-- asistencia-2411: sin gastos pendientes -->
 <!-- quitar-qr-2411 -->
 </section>`;
 const modal=document.createElement('dialog');modal.id='photo-dialog';document.body.appendChild(modal);modal.addEventListener('close',()=>{modal.querySelectorAll('video').forEach(v=>{try{v.pause()}catch(e){}})});
@@ -3016,7 +3023,7 @@ function render(){
  renderPeople();renderStories();
  el('signatures').innerHTML=state.signatures.map(s=>`<div class="comment"><b>${esc(s.author)}</b> <small class="muted">${stamp(s.created)}</small><p>${esc(s.text)}</p><button class="plain danger" data-delete-sign="${esc(s.id)}">Quitar</button></div>`).join('')||'<p class="muted">Todavía no hay firmas. Dejá el primer saludo.</p>';
  renderBirthdays();
- el('pending-list').innerHTML=state.pending.map(p=>`<div class="birthday-row"><div><b>${esc(p.name)}</b><br><span>${fmt(p.amount)} · pendiente</span></div><button class="plain danger" data-delete-pending="${esc(p.id)}">Quitar</button></div>`).join('')+`<p class="muted">Total estimado pendiente: ${fmt(state.pending.reduce((a,p)=>a+p.amount,0))}</p>`;
+ if(el('pending-list'))el('pending-list').innerHTML=state.pending.map(p=>`<div class="birthday-row"><div><b>${esc(p.name)}</b><br><span>${fmt(p.amount)} · pendiente</span></div><button class="plain danger" data-delete-pending="${esc(p.id)}">Quitar</button></div>`).join('')+`<p class="muted">Total estimado pendiente: ${fmt(state.pending.reduce((a,p)=>a+p.amount,0))}</p>`;
 }
 function renderPeople(){setTimeout(()=>{const g=el('people-grid'),c=el('comp-count');if(g&&c){const n=g.querySelectorAll('.person').length;c.innerHTML=n+' de '+names.length+' compañeros · <a href="javascript:void(0)" id="comp-view">'+(g.classList.contains('as-list')?'ver como fichas':'ver como lista')+'</a>';el('comp-view').onclick=()=>{g.classList.toggle('as-list');renderPeople()}}},0);const fold=s=>s.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g,'');const q=fold(el('people-search').value);el('people-grid').innerHTML=names.filter(n=>fold(n+' '+((state.profiles[n]||{}).name||'')).includes(q)).map(n=>{const p=state.profiles[n]||{},photo=p.photo||PHOTOS[n],blank=/^Matrícula /.test(n)&&!(p.name&&p.name.trim()),mem=!!p.memorial,disp=(p.name&&p.name.trim())||(blank?('N° '+MAT[n]):n.replace(/\s*\(\d+\)$/,'')),ini=blank?'·':disp.split(' ').slice(0,2).map(w=>w[0]).join('');return `<article class="person${mem?' memorial':''}${blank?' blank':''}">${photo?`<img class="avatar" src="${SS(photo)}" alt="${esc(disp)}">`:`<span class="avatar">${esc(ini)}</span>`}<div><b>${esc(disp)}${mem?' <span class="mem-tag">🕯️</span>':''}</b><small>${blank?'Sin cargar':esc(p.bio||'Promoción XVII')}${p.day?`<br>🎂 ${p.day}/${p.month}`:''}</small></div></article>`}).join('')||empty('⌕','Sin coincidencias','Probá con otro nombre.');}
 function renderStories(){const q=el('story-search').value.toLocaleLowerCase('es');el('story-grid').innerHTML=state.stories.filter(s=>(s.title+' '+s.author+' '+s.text).toLocaleLowerCase('es').includes(q)).map(s=>`<article class="story"><h3>${esc(s.title)}</h3><small class="muted">${esc(s.author)} · ${stamp(s.created)}</small><p>${esc(s.text)}</p><div class="actions"><button class="plain" data-story-like="${esc(s.id)}">♡ ${s.likes||0}</button><button class="plain danger" data-delete-story="${esc(s.id)}">Quitar</button></div></article>`).join('')||empty('✎','Un montón para contar','Sumá una anécdota o buscá otro recuerdo.');}
@@ -3149,7 +3156,7 @@ el('album-new-cancel').onclick=()=>{el('album-new').hidden=true};
 el('people-search').oninput=renderPeople;el('story-search').oninput=renderStories;
 for(const [form,key] of [['story-form','stories'],['sign-form','signatures']])el(form).onsubmit=async e=>{e.preventDefault();const story=key==='stories',author=el(story?'story-author':'sign-author').value.trim(),text=el(story?'story-text':'sign-text').value.trim(),title=story?el('story-title').value.trim():'';if(!author||!text||(story&&!title))return;try{const rec={id:uid(),author,text,title,created:new Date().toISOString(),likes:0};await mutate(s=>s[key].unshift(rec));e.target.reset();try{await sreq(key+'?on_conflict=id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify(story?rowStory(rec):rowSign(rec))});notify(story?'Historia publicada: ya la ven todos los compañeros.':'Firma publicada para todos.')}catch(err){notify((story?'La historia':'La firma')+' quedó en este dispositivo pero no se pudo publicar ('+err.message+'). Probá de nuevo o avisale a Seba.',true)}}catch(e){notify(e.message,true)}};
 el('profile-name').onchange=fillProfile;el('profile-form').onsubmit=async e=>{e.preventDefault();try{const n=el('profile-name').value,day=Number(el('profile-day').value),month=Number(el('profile-month').value);if((day||month)&&(!day||!month||new Date(2000,month-1,day).getMonth()!==month-1))throw Error('Revisá el día y el mes del cumpleaños.');const file=el('profile-photo').files[0],p={...state.profiles[n],name:el('profile-fullname').value.trim(),bio:el('profile-bio').value.trim(),day,month};if(el('profile-remove').checked)delete p.photo;if(file)p.photo=await photoSrc(file,500);await mutate(s=>s.profiles[n]=p);fillProfile();notify('Ficha actualizada.')}catch(e){notify(e.message,true)}};
-el('pending-form').onsubmit=async e=>{e.preventDefault();try{const name=el('pending-name').value.trim(),amount=Number(el('pending-amount').value);if(!name||!Number.isFinite(amount)||amount<=0)throw Error('Revisá el concepto y el importe.');await mutate(s=>s.pending.push({id:uid(),name,amount}));e.target.reset();notify('Gasto pendiente agregado. El saldo del fondo no cambia.')}catch(e){notify(e.message,true)}};
+if(el('pending-form'))el('pending-form').onsubmit=async e=>{e.preventDefault();try{const name=el('pending-name').value.trim(),amount=Number(el('pending-amount').value);if(!name||!Number.isFinite(amount)||amount<=0)throw Error('Revisá el concepto y el importe.');await mutate(s=>s.pending.push({id:uid(),name,amount}));e.target.reset();notify('Gasto pendiente agregado. El saldo del fondo no cambia.')}catch(e){notify(e.message,true)}};
 if(el('url-form'))el('url-form').onsubmit=async e=>{e.preventDefault();try{const url=new URL(el('site-url').value);if(url.protocol!=='https:'||url.username||url.password||url.href.length>300)throw Error('Ingresá una dirección HTTPS válida de hasta 300 caracteres, sin credenciales.');await mutate(s=>s.url=url.href);notify('Enlace guardado y QR generado.')}catch(e){notify(e.message,true)}};
 if(el('share-site'))el('share-site').onclick=async()=>{if(!state.url){notify('Primero guardá la dirección del futuro sitio.',true);return}try{await navigator.clipboard.writeText(state.url);notify('Enlace copiado.')}catch{notify('Copiá la dirección desde el campo del enlace.',true)}};
 el('backup-export').onclick=()=>download('La_XVII_respaldo_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({app:'LaXVII',version:1,exportedAt:new Date().toISOString(),state},null,2),'application/json');
@@ -3229,10 +3236,10 @@ const baseRender=render;render=function(){baseRender();try{renderMemorial()}catc
  let list=[];
  const disp=n=>String(n||'').replace(/\s*\(\d+\)$/,'');   // siempre el nombre del padrón: Apellido Nombre
  const alive=n=>!((state.profiles[n]||{}).memorial);
- const pick=()=>names.filter(alive).slice().sort((a,b)=>disp(a).localeCompare(disp(b),'es'));
+ const pick=()=>names.filter(alive).filter(n=>(window.AUTH&&AUTH.isAdmin())||n===(window.MI_NOMBRE||me())).slice().sort((a,b)=>disp(a).localeCompare(disp(b),'es'));
  const me=()=>{try{return localStorage.getItem('la-xvii-me')||''}catch(e){return ''}};
  const msg=(t,ok)=>{const m=el('rsvp-msg');m.textContent=t||'';m.classList.toggle('ok',!!ok)};
- const nrm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); function drawPick(){const box=el('rsvp-pick'),qi=el('rsvp-q');if(!box||!qi)return;const q=nrm(qi.value.trim()),sel=el('rsvp-name').value,conf=new Set(list.map(r=>r.pkey));const L=pick().filter(k=>!conf.has(k)&&nrm(disp(k)).includes(q));box.innerHTML=L.length?L.map(k=>'<button type="button" class="rsvp-opt'+(k===sel?' sel':'')+'" data-k="'+esc(k)+'"><span>'+esc(disp(k))+'</span><i>'+(k===sel?'✔ Soy yo':'Elegir')+'</i></button>').join(''):'<p class="rsvp-hint">'+(q?'No aparece. Si ya confirmaste, buscate en «Ver confirmados».':'¡Ya confirmaron todos!')+'</p>'}
+ const nrm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); function drawPick(){const box=el('rsvp-pick'),qi=el('rsvp-q');if(!box||!qi)return;const q=nrm(qi.value.trim()),sel=el('rsvp-name').value,conf=new Set(list.map(r=>r.pkey));const L=pick().filter(k=>!conf.has(k)&&nrm(disp(k)).includes(q));box.innerHTML=L.length?L.map(k=>'<button type="button" class="rsvp-opt'+(k===sel?' sel':'')+'" data-k="'+esc(k)+'"><span>'+esc(disp(k))+'</span><i>'+(k===sel?'✔ Soy yo':'Elegir')+'</i></button>').join(''):'<p class="rsvp-hint">'+(q?'No aparece. Si ya confirmaste, buscate en «Ver confirmados».':((window.AUTH&&AUTH.isAdmin())?'¡Ya confirmaron todos!':'Ya estás confirmado. Si no vas, tocá tu nombre en «Ver confirmados».'))+'</p>'}
  function paint(){const n=list.length;el('rsvp-count').textContent=String(n);el('rsvp-n2').textContent=n;{const n3=el('rsvp-n3');if(n3)n3.textContent=n}
   const mine=me();el('rsvp-list').innerHTML=list.slice().sort((a,b)=>disp(a.pkey).localeCompare(disp(b.pkey),'es')).map(r=>'<li data-k="'+esc(r.pkey)+'"'+(r.pkey===mine?' class="me"':'')+'>'+esc(disp(r.pkey))+'</li>').join('')||'<li style="list-style:none">Todavía nadie. ¡Sé el primero!</li>';
   const sel=el('rsvp-name');const v=sel.value;const go=el('rsvp-go');const yes=list.some(r=>r.pkey===v);go.textContent=v?(yes?'Ya no voy · quitar confirmación':'Confirmo que voy'):'Confirmo que voy';go.classList.toggle('secondary',yes);go.classList.toggle('primary',!yes);drawPick()}
@@ -3243,7 +3250,7 @@ const baseRender=render;render=function(){baseRender();try{renderMemorial()}catc
  el('rsvp-name').onchange=()=>{msg('');paint()};
  el('rsvp-q').oninput=drawPick;
  el('rsvp-pick').onclick=e=>{const b=e.target.closest('.rsvp-opt');if(!b)return;el('rsvp-name').value=b.dataset.k;msg('');paint()};
- el('rsvp-list').onclick=e=>{const li=e.target.closest('li[data-k]');if(!li)return;el('rsvp-name').value=li.dataset.k;msg('');paint();el('rsvp-go').scrollIntoView({block:'nearest'})};
+ el('rsvp-list').onclick=e=>{const li=e.target.closest('li[data-k]');if(!li)return;if(!(window.AUTH&&AUTH.isAdmin())&&li.dataset.k!==(window.MI_NOMBRE||me())){msg('Solo podés quitar tu propia confirmación.');return}el('rsvp-name').value=li.dataset.k;msg('');paint();el('rsvp-go').scrollIntoView({block:'nearest'})};
  el('rsvp-go').onclick=async()=>{const n=el('rsvp-name').value;if(!n){msg('Elegí tu nombre de la lista.');return}const yes=list.some(r=>r.pkey===n),b=el('rsvp-go');b.disabled=true;
   try{if(yes){await sreq('asistencia?pkey=eq.'+encodeURIComponent(n),{method:'DELETE'});msg('Listo, quitamos la confirmación de '+disp(n)+'.',true)}
    else{await sreq('asistencia?on_conflict=pkey',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify({pkey:n,created:new Date().toISOString()})});msg('¡Genial! '+disp(n)+' confirmado para la reunión.',true)}
@@ -3406,6 +3413,7 @@ function fundCompute(cfg, movs){
     const w=trabajo(); let antes=null, despues=null, err='';
     try{ antes=fundCompute(cfg,movs); despues=fundCompute(w.cfg,w.movs); if((w.cfg.inst||[]).some(i=>Number(i.val)<0)) err='El efectivo de la cartera quedaría negativo. Revisá los montos o cargá la valuación.'; }catch(x){ err=x.message||String(x); }
     const pub=window.DATA&&window.DATA.kpi, desfase=antes&&pub&&(antes.kpi.capital!==pub.capital||antes.kpi.valor!==pub.valor||antes.kpi.ganancia!==pub.ganancia);
+    const pubN=((window.DATA&&window.DATA.part)||[]).map(p=>p.n), suman=(cfg.nombres||[]).filter(n=>!pubN.includes(n)), salen=pubN.filter(n=>!(cfg.nombres||[]).includes(n)), nDif=suman.length+salen.length;   /* asistencia-2411 */
 
     /* 1 · cargar movimiento */
     h+='<details class="tools" open><summary>Cargar movimiento</summary><div><form id="fa-form" autocomplete="off"><div class="form-grid">'
@@ -3452,7 +3460,8 @@ function fundCompute(cfg, movs){
     h+='<div class="tools" id="fa-pend"><h3 style="margin:0 0 10px">Cambios sin guardar</h3>';
     if(desfase) h+='<p class="danger">Atención: las cifras publicadas no coinciden con las del libro. No guardes hasta revisarlo.</p>';
     if(err) h+='<p class="danger">'+e(err)+'</p>';
-    if(!ops.length&&!cfgNew) h+='<p class="muted">No hay cambios pendientes.</p>';
+    if(nDif) h+='<p class="fa-asist">La lista de aportantes cambió por la asistencia'+(suman.length?' · se suman: <b>'+e(suman.join(', '))+'</b>':'')+(salen.length?' · salen: <b>'+e(salen.join(', '))+'</b>':'')+'. Guardá para publicar las cifras con la lista nueva.</p>';
+    if(!ops.length&&!cfgNew&&!nDif) h+='<p class="muted">No hay cambios pendientes.</p>';
     else{
       h+=ops.map((o,i)=>'<div class="fa-op"><span>'+e(textoOp(o))+'</span><button type="button" class="plain" data-act="op-del" data-i="'+i+'" aria-label="Quitar este cambio">Quitar</button></div>').join('');
       if(cfgNew) h+='<div class="fa-op"><span>Nueva valuación · corte '+e(dm(cfgNew.corte))+' · '+e(cfgNew.meses_n)+' cuotas vencidas · cartera '+e(pesos((cfgNew.inst||[]).reduce((s,i)=>s+Number(i.val),0)))+'</span><button type="button" class="plain" data-act="val-del">Quitar</button></div>';
