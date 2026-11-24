@@ -1068,7 +1068,7 @@ const $=id=>document.getElementById(id);
     const uidq=encodeURIComponent((sess&&sess.user&&sess.user.id)||'');
     const [r,rp,rn]=await Promise.all([
       fetch(URL_+'/rest/v1/fund_data?select=id,payload',{headers:h}),
-      fetch(URL_+'/rest/v1/permisos?select=perfil,perms',{headers:h}).catch(()=>null),
+      fetch(URL_+'/rest/v1/permisos?select=perfil,perms&user_id=eq.'+uidq,{headers:h}).catch(()=>null),
       fetch(URL_+'/rest/v1/padron_user?select=nombre&user_id=eq.'+uidq,{headers:h}).catch(()=>null)]);   /* asistencia-2411 */
     if(!r.ok){const e=new Error('No se pudieron cargar los datos (HTTP '+r.status+').');e.status=r.status;throw e}
     const rows=await r.json(),by={};
@@ -2982,14 +2982,19 @@ const rowSign=x=>({id:x.id,author:x.author,text:x.text,created:x.created});
 const rowProf=(k,x)=>({pkey:k,name:x.name||'',bio:x.bio||'',day:x.day||null,month:x.month||null,memorial:!!x.memorial,years:x.years||null,photo:x.photo||null});
 const rowTrib=x=>({id:x.id,pkey:x.pkey||'',author:x.author,text:x.text,created:x.created});const rowPhoto=x=>({id:x.id,src:x.src||'',author:x.author||'',caption:x.caption||'',category:x.category||'',likes:x.likes||0,created:x.created,kind:x.kind||'image',poster:x.poster||null,duration:x.duration||null});
 const rowAlbum=x=>({id:x.id,name:x.name,description:x.description||'',created:x.created});
+/* servidor-2411: a la base solo va lo que cambió en esta sesión (campo por campo); las filas nuevas van completas */
+async function patchRow(table,col,id,diff){try{await sreq(table+'?'+col+'=eq.'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(diff)});}catch(e){console.warn('patch',table,e);}}
+const rowDiff=(a,b)=>{const d={};for(const k in b){if(JSON.stringify(a[k])!==JSON.stringify(b[k]))d[k]=b[k]}return d};
 async function syncUp(){if(!remoteOn())return;
- for(const t of ['stories','signatures','tributes','photos','albums']){const cur=snapArr(state[t]),prev=syncSnap[t]||{};for(const id in cur){if(JSON.stringify(prev[id])!==JSON.stringify(cur[id]))pushRow(t,t==='stories'?rowStory(cur[id]):t==='tributes'?rowTrib(cur[id]):t==='photos'?rowPhoto(cur[id]):t==='albums'?rowAlbum(cur[id]):rowSign(cur[id]));}for(const id in prev){if(!cur[id])delRow(t,id);}syncSnap[t]=cur;}
- const cur=snapObj(state.profiles),prev=syncSnap.profiles;for(const k in cur){if(JSON.stringify(prev[k])!==JSON.stringify(cur[k]))pushRow('profiles',rowProf(k,cur[k]));}syncSnap.profiles=cur;
+ const RF={stories:rowStory,tributes:rowTrib,photos:rowPhoto,albums:rowAlbum,signatures:rowSign};
+ for(const t of ['stories','signatures','tributes','photos','albums']){const cur=snapArr(state[t]),prev=syncSnap[t]||{};for(const id in cur){if(JSON.stringify(prev[id])===JSON.stringify(cur[id]))continue;if(!prev[id]){pushRow(t,RF[t](cur[id]));continue}const d=rowDiff(RF[t](prev[id]),RF[t](cur[id]));delete d.id;if(Object.keys(d).length)patchRow(t,'id',id,d);}for(const id in prev){if(!cur[id])delRow(t,id);}syncSnap[t]=cur;}
+ const cur=snapObj(state.profiles),prev=syncSnap.profiles||{};for(const k in cur){if(JSON.stringify(prev[k])===JSON.stringify(cur[k]))continue;if(!prev[k]){pushRow('profiles',rowProf(k,cur[k]));continue}const d=rowDiff(rowProf(k,prev[k]),rowProf(k,cur[k]));delete d.pkey;if(Object.keys(d).length)patchRow('profiles','pkey',k,d);}syncSnap.profiles=cur;
 }
 async function pullRemote(){if(!remoteOn())return;try{
- const res=await Promise.all([sreq('stories?select=*'),sreq('signatures?select=*'),sreq('profiles?select=*'),sreq('tributes?select=*').catch(()=>[]),sreq('photos?select=*').catch(()=>[]),sreq('albums?select=*').catch(()=>[])]);
- const st=res[0]||[],sg=res[1]||[],pr=res[2]||[],tr=res[3]||[],ph=res[4]||[],al=res[5]||[];
- const mergeArr=(local,rem)=>{const by={};(local||[]).concat(rem||[]).forEach(x=>{if(x&&x.id)by[x.id]=x});return Object.values(by).sort((a,b)=>Date.parse(b.created)-Date.parse(a.created));};
+ const res=await Promise.all([sreq('stories?select=*'),sreq('signatures?select=*'),sreq('profiles?select=*'),sreq('tributes?select=*').catch(()=>null),sreq('photos?select=*').catch(()=>null),sreq('albums?select=*').catch(()=>null)]);
+ const st=res[0]||[],sg=res[1]||[],pr=res[2]||[],tr=res[3],ph=res[4],al=res[5];
+ /* servidor-2411: si la base respondió, manda la base; si falló, queda lo local */
+ const mergeArr=(local,rem)=>{if(rem==null)return (local||[]).slice();const by={};(rem||[]).forEach(x=>{if(x&&x.id)by[x.id]=x});return Object.values(by).sort((a,b)=>Date.parse(b.created)-Date.parse(a.created));};
  const next=structuredClone(state);
  next.stories=mergeArr(state.stories,st);next.signatures=mergeArr(state.signatures,sg);next.tributes=mergeArr(state.tributes||[],tr);next.photos=mergeArr(state.photos||[],ph).filter(x=>!window.PERM_PHOTO||PERM_PHOTO(x));next.albums=mergeArr(state.albums||[],al).filter(a=>!window.PERM_ALBUM||(a&&PERM_ALBUM(a.id)));
  pr.forEach(r=>{if(!r||!r.pkey||!names.includes(r.pkey))return;const c=next.profiles[r.pkey]||{};next.profiles[r.pkey]=Object.assign({},c,{name:r.name||'',bio:r.bio||'',day:r.day||0,month:r.month||0,memorial:!!r.memorial,years:r.years||undefined,photo:r.photo||c.photo||undefined});});
@@ -3109,6 +3114,7 @@ const MOVE={on:false,sel:new Set(),toggle(id){this.sel.has(id)?this.sel.delete(i
 window.MOVE=MOVE;
 const albOpts=cur=>albumList().filter(a=>a.id!==cur).map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
 async function movePhotos(ids,dest){ids=ids.filter(id=>{const p=state.photos.find(x=>x.id===id);return p&&p.category!==dest});if(!ids.length)return 0;
+  await sreq('rpc/admin_move_photos',{method:'POST',body:JSON.stringify({p_ids:ids,p_dest:dest})});
   await mutate(s=>{s.photos.forEach(x=>{if(ids.includes(x.id))x.category=dest})});return ids.length}
 function moveRow(p){return `<div class="mv-row"><label>Mover a otro álbum <select id="mv-dest"><option value="">— Elegí el álbum —</option>${albOpts(p.category)}</select></label><button class="secondary" id="mv-go" type="button">Mover</button></div>`}
 function wireMoveRow(id){const b=el('mv-go');if(!b)return;b.onclick=async()=>{const d=el('mv-dest').value;if(!d){notify('Elegí a qué álbum moverla.',true);return}
@@ -3174,7 +3180,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
 el('theme').onclick=()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('la-xvii-theme',theme)}catch{}};try{document.documentElement.dataset.theme=localStorage.getItem('la-xvii-theme')||'light'}catch{}
 {const d=[...document.querySelectorAll('#management details.tools')].find(x=>/Editar ficha/.test(x.querySelector('summary').textContent));const box=el('ficha-box');if(d&&box){d.open=false;box.appendChild(d)}const lk=el('ficha-link');if(lk)lk.addEventListener('click',()=>{const dd=el('ficha-box').querySelector('details');if(dd)dd.open=true})}
 render();fillProfile();if(!storageOK)notify('No se pudo abrir el almacenamiento local. Podés consultar el sitio, pero no guardar cambios desde este navegador.',true);
-syncUp();pullRemote();setInterval(pullRemote,45000);
+syncSnap={stories:snapArr(state.stories),signatures:snapArr(state.signatures),tributes:snapArr(state.tributes||[]),photos:snapArr(state.photos||[]),albums:snapArr(state.albums||[]),profiles:snapObj(state.profiles)};pullRemote();setInterval(pullRemote,45000);   /* servidor-2411: sin envío masivo al abrir */
 /* ===== Mi ficha (acceso por matrícula) + En memoria + Admin ===== */
 if(!state.tributes)state.tributes=[];
 const isAdmin=()=>!!(window.AUTH&&AUTH.isAdmin());
