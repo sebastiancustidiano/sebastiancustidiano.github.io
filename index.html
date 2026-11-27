@@ -318,6 +318,10 @@ html body .logos .medal::after{content:"";position:absolute;inset:-20%;pointer-e
 html body .logos .medal-escudo::after{animation-delay:1.5s}
 @media (prefers-reduced-motion:reduce){html body .logos .medal,html body .logos .medal::after{animation:none!important}html body .logos .medal::after{display:none}}
 </style>
+<style id="perfil-2711-css">
+/* perfil-2711: botón de cuenta con la foto de la ficha */
+html body #acct.con-foto{background-color:#0e2a42!important;background-size:cover!important;background-position:center 30%!important;background-repeat:no-repeat!important;box-shadow:0 0 0 2px #efe3c8,0 2px 8px rgba(0,0,0,.4);font-size:0;color:transparent!important}
+</style>
 </head>
 <body class="locked booting">
 
@@ -3044,7 +3048,10 @@ el('management').innerHTML=`<section class="community-section" id="gestion"><p c
 </section>`;
 const modal=document.createElement('dialog');modal.id='photo-dialog';document.body.appendChild(modal);modal.addEventListener('close',()=>{modal.querySelectorAll('video').forEach(v=>{try{v.pause()}catch(e){}})});
 const empty=(icon,title,body)=>`<div class="empty"><span class="empty-icon">${icon}</span><b>${title}</b><span>${body}</span></div>`;
+/* perfil-2711: foto de la ficha propia en el botón de cuenta */
+function acctFoto(){const ac=el('acct');if(!ac)return;const me=window.MI_NOMBRE,p=(me&&state.profiles[me])||{},ph=p.photo||(me&&PHOTOS[me])||'';if(!ph){ac.classList.remove('con-foto');ac.style.removeProperty('background-image');if(!ac.textContent)ac.textContent='👤';return}const set=()=>{ac.style.setProperty('background-image','url("'+String(SS(ph)).replace(/"/g,'%22')+'")','important');ac.classList.add('con-foto');ac.textContent=''};set();if(window.ensureSigned&&/\/storage\/v1\//.test(ph))ensureSigned([{src:ph}]).then(a=>{if(a)set()}).catch(()=>{});}
 function render(){
+ try{acctFoto()}catch(e){}
  renderMedia();
  renderPeople();renderStories();
  el('signatures').innerHTML=state.signatures.map(s=>`<div class="comment"><b>${esc(s.author)}</b> <small class="muted">${stamp(s.created)}</small><p>${esc(s.text)}</p><button class="plain danger" data-delete-sign="${esc(s.id)}">Quitar</button></div>`).join('')||'<p class="muted">Todavía no hay firmas. Dejá el primer saludo.</p>';
