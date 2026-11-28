@@ -322,6 +322,22 @@ html body .logos .medal-escudo::after{animation-delay:1.5s}
 /* perfil-2711: botón de cuenta con la foto de la ficha */
 html body #acct.con-foto{background-color:#0e2a42!important;background-size:cover!important;background-position:center 30%!important;background-repeat:no-repeat!important;box-shadow:0 0 0 2px #efe3c8,0 2px 8px rgba(0,0,0,.4);font-size:0;color:transparent!important}
 </style>
+<style id="huella-2711-css">
+/* huella-2711: ingreso con huella */
+.hu-ico{width:22px;height:22px;flex:none;vertical-align:-5px}
+.hu-login{margin:4px 0 6px}
+.hu-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 16px;border-radius:999px;border:0;background:#0f2b46;color:#efe3c8;font:700 15px 'Montserrat',sans-serif;cursor:pointer;box-shadow:0 8px 18px -10px rgba(15,43,70,.8)}
+.hu-btn:disabled{opacity:.6}
+.hu-btn .hu-ico{color:#c9b48a;width:24px;height:24px}
+.hu-or{display:flex;align-items:center;gap:10px;margin:12px 0 4px;color:var(--muted);font-size:12.5px}
+.hu-or::before,.hu-or::after{content:"";flex:1;height:1px;background:var(--line-strong,#cdbd9f)}
+.hu-box{margin:6px 0 10px;padding:12px 14px;border:1px solid var(--line-strong,#cdbd9f);border-radius:12px;background:var(--surface-2,#fbf7ef)}
+.hu-box .pw-title{margin-top:0;display:flex;align-items:center;gap:6px}
+.hu-txt{margin:2px 0 8px;font-size:14px;color:var(--muted)}
+.hu-list{list-style:none;margin:0 0 8px;padding:0}
+.hu-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line-strong,#cdbd9f);font-size:13.5px}
+.hu-del{border:1px solid var(--line-strong,#cdbd9f);background:transparent;border-radius:999px;padding:5px 12px;font:600 12px 'Montserrat',sans-serif;cursor:pointer;color:inherit;white-space:nowrap}
+</style>
 </head>
 <body class="locked booting">
 
@@ -753,7 +769,7 @@ footer{margin-top:26px; text-align:center; font-size:12px; color:var(--faint);}
     <p class="eyebrow">ACCEDER</p>
     <h2 id="gate-t">Promo XVII</h2>
     <p class="gate-help">Ingresá con tu usuario y contraseña. La clave te la pasó Seba por WhatsApp.</p>
-    <form id="login-form" autocomplete="on">
+    <div class="hu-login" id="hu-login" hidden><button class="hu-btn" type="button" id="hu-btn"><svg class="hu-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 11v3.5c0 2.5-.8 4.6-2 6.3"/><path d="M8.6 9.4A4 4 0 0 1 16 11.5v1.8c0 2.6-.5 5-1.5 7"/><path d="M5.8 7.6A7 7 0 0 1 19 11.4v1.6c0 1.6-.2 3.2-.6 4.6"/><path d="M5 11.2v1.2c0 2.2-.4 4-1.1 5.4"/><path d="M7.6 4.3A9.2 9.2 0 0 1 20.8 9"/><path d="M8.6 13.4c0 2.6-.6 5-1.8 7"/></svg><span>Ingresar con huella</span></button><p class="gate-msg" id="hu-login-msg" role="alert"></p><p class="hu-or"><span>o con matrícula y contraseña</span></p></div><form id="login-form" autocomplete="on">
       <label class="field">Matrícula<input id="login-leg" name="username" inputmode="numeric" pattern="[0-9]*" autocomplete="username" autocapitalize="none" required placeholder="Ej. 117"></label>
       <label class="field">Contraseña<input id="login-pass" name="password" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
       <button class="primary" id="login-btn" type="submit">Ingresar</button>
@@ -1002,7 +1018,7 @@ const $=id=>document.getElementById(id);
     <button class="marcha-x" type="button" aria-label="Cerrar" onclick="AUTH.closeAccount()">×</button>
     <div class="marcha-head"><span class="marcha-eyebrow">MI CUENTA</span><h2 id="acct-title">Hola</h2></div>
     <p id="acct-who" class="muted"></p>
-    <form id="pw-form" autocomplete="off">
+    <div class="hu-box" id="hu-box" hidden><p class="pw-title"><svg class="hu-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 11v3.5c0 2.5-.8 4.6-2 6.3"/><path d="M8.6 9.4A4 4 0 0 1 16 11.5v1.8c0 2.6-.5 5-1.5 7"/><path d="M5.8 7.6A7 7 0 0 1 19 11.4v1.6c0 1.6-.2 3.2-.6 4.6"/><path d="M5 11.2v1.2c0 2.2-.4 4-1.1 5.4"/><path d="M7.6 4.3A9.2 9.2 0 0 1 20.8 9"/><path d="M8.6 13.4c0 2.6-.6 5-1.8 7"/></svg> Ingreso con huella</p><p class="hu-txt" id="hu-txt">Activala una vez en cada teléfono y la próxima vez entrás con la huella o la cara, sin clave.</p><ul class="hu-list" id="hu-list"></ul><div class="actions"><button class="primary" type="button" id="hu-reg">Activar en este teléfono</button></div><p class="gate-msg" id="hu-msg" role="alert"></p></div><form id="pw-form" autocomplete="off">
       <p class="pw-title">Cambiar mi contraseña</p>
       <label class="field">Contraseña actual<input id="pw-old" type="password" autocomplete="current-password" required autocapitalize="none"></label>
       <label class="field">Contraseña nueva<input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="72" required autocapitalize="none"></label>
@@ -1379,12 +1395,86 @@ const $=id=>document.getElementById(id);
     $('acct-who').textContent='Matrícula '+(u.matricula||'')+' · '+(u.name||'')+(isAdmin()?' · administrador':'');
     msg('pw-msg','');$('pw-form').reset();
     m.classList.add('open');m.setAttribute('aria-hidden','false');
-    if($('adm-result'))$('adm-result').hidden=true;msg('adm-msg','');loadAdmin();
+    if($('adm-result'))$('adm-result').hidden=true;msg('adm-msg','');loadAdmin();try{huOpenAccount()}catch(e){}
   }
   function closeAccount(){const m=$('acct-modal');if(!m)return;m.classList.remove('open');m.setAttribute('aria-hidden','true')}
 
   function openGate(){document.body.classList.add('gate-open');msg('login-msg','');setTimeout(()=>{const i=$('login-leg');if(i)i.focus()},50)}
   function closeGate(){document.body.classList.remove('gate-open')}
+
+  /* ---------- huella-2711: ingreso con huella (passkeys / WebAuthn) ---------- */
+  const huOK=()=>!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);
+  const b64u={dec:s=>{s=String(s).replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer},
+    enc:buf=>{const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}};
+  function huCreateOpts(o){if(PublicKeyCredential.parseCreationOptionsFromJSON)return PublicKeyCredential.parseCreationOptionsFromJSON(o);
+    const r=Object.assign({},o,{challenge:b64u.dec(o.challenge),user:Object.assign({},o.user,{id:b64u.dec(o.user.id)})});
+    if(o.excludeCredentials&&o.excludeCredentials.length)r.excludeCredentials=o.excludeCredentials.map(c=>Object.assign({},c,{id:b64u.dec(c.id),type:c.type||'public-key'}));else delete r.excludeCredentials;return r}
+  function huGetOpts(o){if(PublicKeyCredential.parseRequestOptionsFromJSON)return PublicKeyCredential.parseRequestOptionsFromJSON(o);
+    const r=Object.assign({},o,{challenge:b64u.dec(o.challenge)});
+    if(o.allowCredentials&&o.allowCredentials.length)r.allowCredentials=o.allowCredentials.map(c=>Object.assign({},c,{id:b64u.dec(c.id),type:c.type||'public-key'}));else delete r.allowCredentials;return r}
+  function huJSON(c,reg){if(typeof c.toJSON==='function'){try{return c.toJSON()}catch(e){}}
+    const p=c.response,resp=reg?{attestationObject:b64u.enc(p.attestationObject),clientDataJSON:b64u.enc(p.clientDataJSON)}
+      :{authenticatorData:b64u.enc(p.authenticatorData),clientDataJSON:b64u.enc(p.clientDataJSON),signature:b64u.enc(p.signature),userHandle:p.userHandle?b64u.enc(p.userHandle):undefined};
+    if(reg&&typeof p.getTransports==='function')resp.transports=p.getTransports();
+    return {id:c.id,rawId:c.id,type:'public-key',response:resp,clientExtensionResults:c.getClientExtensionResults?c.getClientExtensionResults():{},authenticatorAttachment:c.authenticatorAttachment||undefined}}
+  async function huReq(path,method,body,auth){
+    const h={apikey:KEY,'Content-Type':'application/json'};if(auth)h.Authorization='Bearer '+token();
+    const r=await fetch(URL_+'/auth/v1/'+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});
+    let j=null;try{j=await r.json()}catch(e){}
+    if(!r.ok){const e=new Error((j&&(j.msg||j.error_description||j.message))||('HTTP '+r.status));e.status=r.status;e.code=j&&(j.error_code||j.code);throw e}
+    return j}
+  const huDevice=()=>{const u=navigator.userAgent||'';return /iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android':/Mac/.test(u)?'Mac':/Windows/.test(u)?'Windows':'Este equipo'};
+  function huErr(e,login){
+    const c=e&&(e.code||''),n=e&&e.name;
+    if(c==='passkey_disabled')return 'El ingreso con huella todavía no está habilitado. Ingresá con tu clave.';
+    if(n==='NotAllowedError'||n==='AbortError')return login?'No se completó. Si todavía no activaste la huella en este teléfono, ingresá con tu clave y activala en «Mi cuenta».':'Se canceló. Probá de nuevo cuando quieras.';
+    if(c==='webauthn_credential_not_found')return 'Esa huella ya no está registrada. Ingresá con tu clave y volvé a activarla en «Mi cuenta».';
+    if(c==='webauthn_credential_exists'||n==='InvalidStateError')return 'Este teléfono ya tiene la huella activada.';
+    if(c==='too_many_passkeys')return 'Llegaste al máximo de huellas registradas. Quitá alguna de la lista.';
+    if(c==='webauthn_challenge_expired'||c==='webauthn_challenge_not_found')return 'Tardó demasiado. Probá de nuevo.';
+    if(n==='SecurityError')return 'Este navegador no permite usar la huella en esta dirección.';
+    return login?'No se pudo ingresar con huella. Probá con tu clave.':'No se pudo activar la huella. Probá de nuevo.'}
+  async function huLogin(){
+    const btn=$('hu-btn');btn.disabled=true;msg('hu-login-msg','Esperando la huella…',true);
+    try{
+      const o=await huReq('passkeys/authentication/options','POST',{});
+      const c=await navigator.credentials.get({publicKey:huGetOpts(o.options)});
+      const d=await huReq('passkeys/authentication/verify','POST',{challenge_id:o.challenge_id,credential:huJSON(c,false)});
+      const s=d&&(d.session||d);if(!s||!s.access_token)throw new Error('sin sesión');
+      sess=toSess(s);save(sess);
+      try{localStorage.setItem('la-xvii-huella','1')}catch(e){}
+      await start();msg('hu-login-msg','');
+    }catch(err){
+      if(sess&&!started){sess=null;save(null)}
+      msg('hu-login-msg',err&&err.status===403?err.message:huErr(err,true));
+    }finally{btn.disabled=false}
+  }
+  async function huList(){
+    const ul=$('hu-list');if(!ul)return;
+    let L=[];try{L=await huReq('passkeys','GET',undefined,true)||[]}catch(e){ul.innerHTML='';if(e.code==='passkey_disabled'){$('hu-reg').disabled=true;msg('hu-msg','El ingreso con huella todavía no está habilitado.')}return}
+    const f=d=>d?new Date(d).toLocaleDateString('es-AR'):'';
+    ul.innerHTML=L.map(p=>'<li><span>'+String(p.friendly_name||'Huella').replace(/[<>&"]/g,'')+' · activada el '+f(p.created_at)+(p.last_used_at?' · último uso '+f(p.last_used_at):'')+'</span><button type="button" class="hu-del" data-id="'+String(p.id).replace(/[^A-Za-z0-9-]/g,'')+'">Quitar</button></li>').join('');
+    $('hu-txt').textContent=L.length?'Tenés la huella activada en:':'Activala una vez en cada teléfono y la próxima vez entrás con la huella o la cara, sin clave.';
+  }
+  async function huRegister(){
+    const btn=$('hu-reg');btn.disabled=true;msg('hu-msg','Seguí las indicaciones del teléfono…',true);
+    try{
+      const o=await huReq('passkeys/registration/options','POST',{},true);
+      const c=await navigator.credentials.create({publicKey:huCreateOpts(o.options)});
+      const r=await huReq('passkeys/registration/verify','POST',{challenge_id:o.challenge_id,credential:huJSON(c,true)},true);
+      try{if(r&&r.id)await huReq('passkeys/'+encodeURIComponent(r.id),'PATCH',{friendly_name:huDevice()},true)}catch(e){}
+      try{localStorage.setItem('la-xvii-huella','1')}catch(e){}
+      msg('hu-msg','¡Listo! La próxima vez tocá «Ingresar con huella».',true);huList();
+    }catch(err){msg('hu-msg',huErr(err,false))}finally{btn.disabled=false}
+  }
+  async function huDelete(b){
+    if(b.dataset.sure!=='1'){b.dataset.sure='1';b.textContent='¿Seguro? Tocá de nuevo';setTimeout(()=>{b.dataset.sure='';b.textContent='Quitar'},4000);return}
+    b.disabled=true;
+    try{await huReq('passkeys/'+encodeURIComponent(b.dataset.id),'DELETE',undefined,true);msg('hu-msg','Huella quitada.',true);huList()}
+    catch(err){b.disabled=false;msg('hu-msg','No se pudo quitar. Probá de nuevo.')}
+  }
+  function huOpenAccount(){const bx=$('hu-box');if(!bx)return;bx.hidden=!huOK();if(bx.hidden)return;msg('hu-msg','');$('hu-reg').disabled=false;huList()}
+
 
   window.AUTH={token,isAdmin,isMember,logout,openAccount,closeAccount,openGate,closeGate,user:()=>sess&&sess.user};
 
@@ -1409,6 +1499,9 @@ const $=id=>document.getElementById(id);
     });
     wireAdmin();
     const ba=$('btn-acceder');if(ba)ba.addEventListener('click',openGate);
+    /* huella-2711 */const hl=$('hu-login');if(hl&&huOK()){hl.hidden=false;$('hu-btn').addEventListener('click',huLogin)}
+    const hr=$('hu-reg');if(hr)hr.addEventListener('click',huRegister);
+    const hli=$('hu-list');if(hli)hli.addEventListener('click',e=>{const b=e.target.closest('.hu-del');if(b)huDelete(b)});
     const ac=$('acct');if(ac)ac.addEventListener('click',openAccount);
     const lo=$('logout-btn');if(lo)lo.addEventListener('click',logout);
     const pf=$('pw-form');
