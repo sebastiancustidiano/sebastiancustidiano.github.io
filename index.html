@@ -4180,9 +4180,11 @@ body.cb-open #cb-panel{display:flex}
       return{t:I.length?'La cartera hoy:<ul>'+I.map(i=>'<li><b>'+esc(i.n)+'</b>: '+money(i.val)+(i.tna!=null?' · TNA '+pct(i.tna):'')+'</li>').join('')+'</ul>':'Por ahora no hay inversiones cargadas en esta gestión.',o:[['📊 Ver el detalle','@fondo','go'],...BACK('fondo')]}},
     gastos:()=>({t:'La rendición completa de aportes, inversiones y gastos está en <b>Cuentas Claras</b>. Te llevo.',o:[['🧾 Ir a Cuentas Claras','@rendicion','go'],...BACK('fondo')]}),
     comp:()=>{const o=[];if(ok('cumples'))o.push(['🎂 Próximos cumpleaños','cumple']);if(ok('companeros'))o.push(['🔎 Buscar a un compañero','@buscar'],['✏️ Editar mi ficha','@ficha']);o.push(...BACK('root'));return{t:'¿Qué buscás?',o}},
-    cumple:()=>{const t0=new Date();t0.setHours(0,0,0,0);const L=(window.CUMPLES?window.CUMPLES():[]).slice(0,4);
-      const R=L.map(p=>{const dd=Math.round((p.date-t0)/864e5);return '<li><b>'+esc(disp(p.n))+'</b> · '+p.day+' de '+p.date.toLocaleDateString('es-AR',{month:'long'})+' · '+(dd===0?'¡hoy! 🎂':dd===1?'mañana':'en '+dd+' días')+'</li>'});
-      return{t:R.length?'Los que vienen:<ul>'+R.join('')+'</ul>':'Todavía nadie cargó su cumpleaños. Cada uno lo agrega en «Editar mi ficha».',o:[['Ver todos','@cumples'],...BACK('comp')]}},
+    cumple:()=>{const t0=new Date();t0.setHours(0,0,0,0);const A=window.CUMPLES?window.CUMPLES():[];
+      if(!A.length)return{t:'Todavía nadie cargó su cumpleaños. Cada uno lo agrega en «Editar mi ficha».',o:[['Ver todos','@cumples'],...BACK('comp')]};
+      const f=A[0],L=A.filter(p=>+p.date===+f.date),dd=Math.round((f.date-t0)/864e5);   /* solo el más próximo (o los que cumplen ese mismo día) */
+      const cuando=dd===0?'<span class="cb-big">¡Hoy! 🎂</span>':dd===1?'<span class="cb-big">Mañana 🎂</span>':'<span class="cb-big">En '+dd+' días</span>';
+      return{t:'El próximo cumpleaños es de '+L.map(p=>'<b>'+esc(disp(p.n))+'</b>').join(' y ')+', el '+f.day+' de '+f.date.toLocaleDateString('es-AR',{month:'long'})+'.'+cuando,o:[['Ver todos','@cumples'],...BACK('comp')]}},
     fotos:()=>{const o=[];if(ok('fotos'))o.push(['🖼️ Ver álbumes','@fotos'],['⬆️ Subir fotos o videos','@subir']);if(ok('historias'))o.push(['📝 Dejar una historia','@historia']);o.push(...BACK('root'));return{t:'Fotos, videos y recuerdos:',o}},
     ayuda:()=>{const o=[['📲 Instalar en el celular','instalar']];if(ok('companeros'))o.push(['🙂 Cambiar mi foto','@ficha']);o.push(['🔑 Cambiar mi clave','@clave'],['😵 Algo no funciona','nofunca'],...BACK('root'));return{t:'¿Con qué te ayudo?',o}},
     instalar:()=>{const g=$('pwa-go'),bar=$('pwa-bar'),puede=g&&bar&&!bar.hidden;const o=[];if(puede)o.push(['📲 Instalar ahora','@instalar','go']);o.push(...BACK('ayuda'));
